@@ -1,0 +1,33 @@
+{
+  "name": "desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "tsc --noEmit && vp build",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@stylexjs/stylex": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "motion": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@stylexjs/unplugin": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "electron": "catalog:",
+    "typescript": "catalog:",
+    "unplugin": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-electron": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

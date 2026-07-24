@@ -1,0 +1,29 @@
+import { createHashHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+
+import "./global.css";
+import { routeTree } from "./routeTree.gen";
+
+const router = createRouter({
+  routeTree,
+  history: createHashHistory(),
+});
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Missing desktop root element");
+}
+
+createRoot(rootElement).render(
+  <StrictMode>
+    <RouterProvider router={router} />
+  </StrictMode>,
+);
