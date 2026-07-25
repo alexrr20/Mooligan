@@ -13,17 +13,17 @@ type ScreenStatus = "checking" | "connected" | "unavailable";
 const statusCopy: Record<ScreenStatus, { label: string; title: string; description: string }> = {
   checking: {
     label: "Checking",
-    title: "Reaching Fastify.",
+    title: "Reaching Hono.",
     description: "Looking for the local service on port 3000.",
   },
   connected: {
     label: "Connected",
-    title: "Fastify is ready.",
+    title: "Hono is ready.",
     description: "The desktop and local API are speaking normally.",
   },
   unavailable: {
     label: "Unavailable",
-    title: "Fastify is offline.",
+    title: "Hono is offline.",
     description: "Start the API, then retry the health check.",
   },
 };
@@ -139,7 +139,7 @@ function HealthScreen({ status, onRetry }: { status: ScreenStatus; onRetry?: () 
 
         <footer {...stylex.props(styles.footer)}>
           <span>Electron renderer</span>
-          <span>Fastify 5</span>
+          <span>Hono 4</span>
         </footer>
       </motion.main>
     </MotionConfig>
