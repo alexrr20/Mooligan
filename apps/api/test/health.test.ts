@@ -1,19 +1,13 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
-import { buildApi } from "../src/app.ts";
+import api from "../src/index.ts";
 
-void test("GET /health reports a CORS-enabled healthy service", async (context) => {
-  const api = buildApi();
-  context.after(() => api.close());
+test("GET /health reports a CORS-enabled healthy service", async () => {
+  const response = await api.request("http://localhost/health");
 
-  const response = await api.inject({
-    method: "GET",
-    url: "/health",
-  });
-
-  assert.equal(response.statusCode, 200);
-  assert.match(response.headers["content-type"] ?? "", /^application\/json/);
-  assert.deepEqual(response.json(), { status: "ok" });
-  assert.equal(response.headers["access-control-allow-origin"], "*");
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^application\/json/);
+  assert.deepEqual(await response.json(), { status: "ok" });
+  assert.equal(response.headers.get("access-control-allow-origin"), "*");
 });

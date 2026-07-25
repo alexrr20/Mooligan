@@ -1,9 +1,10 @@
 # Mooligan
 
-A minimal Electron desktop and Fastify API monorepo built with Vite+ and pnpm.
+A minimal Electron desktop and Hono API monorepo built with Vite+ and pnpm.
 
 - `apps/desktop`: Electron, React 19, TanStack Router, StyleX, and Motion
-- `apps/api`: Fastify 5 on `http://127.0.0.1:3000`
+- `apps/api`: Hono 4 for Cloudflare Workers, served locally by Wrangler on
+  `http://127.0.0.1:3000`
 
 Node.js 22.18 or newer is required.
 
@@ -44,11 +45,13 @@ Build both workspaces:
 vp run -r build
 ```
 
-Run the API and compiled desktop in separate terminals:
+Deploy the API to Cloudflare:
 
 ```bash
-vp run api#start
+vp run api#deploy
 ```
+
+Run the compiled desktop:
 
 ```bash
 vp run desktop#start

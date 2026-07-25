@@ -13,7 +13,7 @@ catalog:
   "@types/react-dom": ^19.2.3
   "@vitejs/plugin-react": ^6.0.4
   electron: ^43.2.0
-  fastify: ^5.10.0
+  hono: ^4.12.32
   motion: ^12.42.2
   react: ^19.2.8
   react-dom: ^19.2.8
@@ -22,6 +22,7 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.6
   vite-plugin-electron: ^1.1.0
   vite-plus: 0.2.6
+  wrangler: ^4.113.0
 overrides:
   vite: "catalog:"
 peerDependencyRules:
@@ -29,3 +30,7 @@ peerDependencyRules:
     - vite
   allowedVersions:
     vite: "*"
+allowBuilds:
+  esbuild: true
+  sharp: false
+  workerd: true

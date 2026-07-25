@@ -4,16 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
-    "test": "node --test"
+    "dev": "wrangler dev --ip 127.0.0.1 --port 3000",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "start": "wrangler dev --ip 127.0.0.1 --port 3000",
+    "test": "vp test run",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "fastify": "catalog:"
+    "hono": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "wrangler": "catalog:"
   }
 }
