@@ -10,33 +10,115 @@
 
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as CollectionRouteImport } from "./routes/collection";
+import { Route as DecksRouteImport } from "./routes/decks";
+import { Route as ListsRouteImport } from "./routes/lists";
+import { Route as SearchRouteImport } from "./routes/search";
+import { Route as SetsRouteImport } from "./routes/sets";
+import { Route as SettingsRouteImport } from "./routes/settings";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const CollectionRoute = CollectionRouteImport.update({
+  id: "/collection",
+  path: "/collection",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const DecksRoute = DecksRouteImport.update({
+  id: "/decks",
+  path: "/decks",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ListsRoute = ListsRouteImport.update({
+  id: "/lists",
+  path: "/lists",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SearchRoute = SearchRouteImport.update({
+  id: "/search",
+  path: "/search",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SetsRoute = SetsRouteImport.update({
+  id: "/sets",
+  path: "/sets",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SettingsRoute = SettingsRouteImport.update({
+  id: "/settings",
+  path: "/settings",
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
+  "/collection": typeof CollectionRoute;
+  "/decks": typeof DecksRoute;
+  "/lists": typeof ListsRoute;
+  "/search": typeof SearchRoute;
+  "/sets": typeof SetsRoute;
+  "/settings": typeof SettingsRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
+  "/collection": typeof CollectionRoute;
+  "/decks": typeof DecksRoute;
+  "/lists": typeof ListsRoute;
+  "/search": typeof SearchRoute;
+  "/sets": typeof SetsRoute;
+  "/settings": typeof SettingsRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
+  "/collection": typeof CollectionRoute;
+  "/decks": typeof DecksRoute;
+  "/lists": typeof ListsRoute;
+  "/search": typeof SearchRoute;
+  "/sets": typeof SetsRoute;
+  "/settings": typeof SettingsRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/";
+  fullPaths:
+    | "/"
+    | "/collection"
+    | "/decks"
+    | "/lists"
+    | "/search"
+    | "/sets"
+    | "/settings";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/";
-  id: "__root__" | "/";
+  to:
+    | "/"
+    | "/collection"
+    | "/decks"
+    | "/lists"
+    | "/search"
+    | "/sets"
+    | "/settings";
+  id:
+    | "__root__"
+    | "/"
+    | "/collection"
+    | "/decks"
+    | "/lists"
+    | "/search"
+    | "/sets"
+    | "/settings";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  CollectionRoute: typeof CollectionRoute;
+  DecksRoute: typeof DecksRoute;
+  ListsRoute: typeof ListsRoute;
+  SearchRoute: typeof SearchRoute;
+  SetsRoute: typeof SetsRoute;
+  SettingsRoute: typeof SettingsRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -48,11 +130,59 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/collection": {
+      id: "/collection";
+      path: "/collection";
+      fullPath: "/collection";
+      preLoaderRoute: typeof CollectionRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/decks": {
+      id: "/decks";
+      path: "/decks";
+      fullPath: "/decks";
+      preLoaderRoute: typeof DecksRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/lists": {
+      id: "/lists";
+      path: "/lists";
+      fullPath: "/lists";
+      preLoaderRoute: typeof ListsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/search": {
+      id: "/search";
+      path: "/search";
+      fullPath: "/search";
+      preLoaderRoute: typeof SearchRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/sets": {
+      id: "/sets";
+      path: "/sets";
+      fullPath: "/sets";
+      preLoaderRoute: typeof SetsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/settings": {
+      id: "/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CollectionRoute: CollectionRoute,
+  DecksRoute: DecksRoute,
+  ListsRoute: ListsRoute,
+  SearchRoute: SearchRoute,
+  SetsRoute: SetsRoute,
+  SettingsRoute: SettingsRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
