@@ -12,6 +12,7 @@ async function createWindow() {
     minHeight: 520,
     show: false,
     title: "Mooligan",
+    titleBarStyle: "hiddenInset",
     backgroundColor: "#f2f1ed",
     webPreferences: {
       sandbox: true,

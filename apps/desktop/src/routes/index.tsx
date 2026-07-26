@@ -88,7 +88,7 @@ function HealthScreen({ status, onRetry }: { status: ScreenStatus; onRetry?: () 
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       >
-        <header {...stylex.props(styles.header)}>
+        <header {...stylex.props(styles.header)} data-window-drag-region>
           <span {...stylex.props(styles.wordmark)}>Mooligan</span>
           <span {...stylex.props(styles.context)}>Local desktop / 01</span>
         </header>
