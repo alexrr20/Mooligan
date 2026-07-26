@@ -17,10 +17,6 @@ vp install
 vp run dev
 ```
 
-The desktop renderer calls the public health endpoint at
-`GET http://127.0.0.1:3000/health`. The API runs independently; Electron does
-not start or stop it.
-
 ## Validation
 
 Format, lint, type-check, test, and build every workspace:

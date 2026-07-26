@@ -5,13 +5,39 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
   margin: 0;
+  overflow: hidden;
+  background: #1b1d19;
+  color: #1b1d19;
+  font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 [data-window-drag-region] {
   app-region: drag;
+}
+
+[data-window-no-drag],
+a,
+button,
+input {
+  app-region: no-drag;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  color: #1b1d19;
+  background: #caff42;
 }
