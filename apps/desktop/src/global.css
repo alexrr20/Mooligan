@@ -11,3 +11,7 @@ body,
 body {
   margin: 0;
 }
+
+[data-window-drag-region] {
+  app-region: drag;
+}
