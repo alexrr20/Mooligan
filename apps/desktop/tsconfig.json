@@ -6,7 +6,8 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "types": ["vite/client", "node"],
-    "allowArbitraryExtensions": true
+    "allowArbitraryExtensions": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["electron", "src", "vite.config.ts"]
+  "include": ["electron", "src", "test", "vite.config.ts"]
 }

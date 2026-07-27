@@ -4,6 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 import { app, ipcMain, net, type IpcMainInvokeEvent } from "electron";
 
+import { recoverInterruptedReplacement } from "./catalog-files";
+
 export type CatalogProgress = {
   completed: number;
   total: number;
@@ -56,6 +58,8 @@ export function registerCatalogIpc() {
 
 async function getCatalogStatus(): Promise<CatalogStatus> {
   const path = catalogPath();
+
+  await recoverInterruptedReplacement(path, `${path}.previous`);
 
   try {
     await stat(path);
@@ -282,6 +286,7 @@ function validateCatalog(path: string, expected: CatalogMeta) {
 }
 
 async function replaceCatalog(partial: string, destination: string, backup: string) {
+  await recoverInterruptedReplacement(destination, backup);
   await rm(backup, { force: true });
 
   try {
