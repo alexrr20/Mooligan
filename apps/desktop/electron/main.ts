@@ -1,8 +1,12 @@
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow, session } from "electron";
 
+import { registerCatalogIpc } from "./catalog";
+
 app.enableSandbox();
+registerCatalogIpc();
 
 async function createWindow() {
   const window = new BrowserWindow({
@@ -15,6 +19,7 @@ async function createWindow() {
     titleBarStyle: "hiddenInset",
     backgroundColor: "#f2f1ed",
     webPreferences: {
+      preload: fileURLToPath(new URL(/* @vite-ignore */ "./preload.mjs", import.meta.url)),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,

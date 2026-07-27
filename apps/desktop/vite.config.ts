@@ -33,6 +33,9 @@ export default defineConfig(({ command }) => ({
           await startup(["."]);
         },
       },
+      preload: {
+        input: "electron/preload.ts",
+      },
     }),
     {
       name: "desktop-content-security-policy",

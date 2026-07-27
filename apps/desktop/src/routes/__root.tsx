@@ -2,6 +2,8 @@ import * as stylex from "@stylexjs/stylex";
 import { createRootRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { motion, MotionConfig } from "motion/react";
 
+import { CatalogSetup } from "../components/catalog-setup";
+
 export const Route = createRootRoute({
   component: AppShell,
 });
@@ -75,6 +77,7 @@ function AppShell() {
           </motion.div>
         </main>
       </div>
+      <CatalogSetup />
     </MotionConfig>
   );
 }
