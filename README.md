@@ -14,8 +14,16 @@ Install dependencies, then start the API and Electron together:
 
 ```bash
 vp install
+vp run api#db:migrate:local
 vp run dev
 ```
+
+The local migration creates the D1 catalog schema. Card rows and the singleton
+`catalog_meta` publication record must be loaded before the desktop download is
+available.
+
+Packaged desktop builds read the catalog service from `MOOLIGAN_API_URL`; local
+development defaults to `http://127.0.0.1:3000`.
 
 ## Validation
 

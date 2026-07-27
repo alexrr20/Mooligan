@@ -3,4 +3,13 @@
   "name": "mooligan-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "prod-moo",
+      "database_id": "600a4a28-3079-407c-94c9-606194bef82c",
+      "migrations_dir": "migrations",
+    },
+  ],
 }
