@@ -1,79 +1,49 @@
-import { CatalogSnapshotSchema } from "@mooligan/domain/catalog";
-import { CatalogPageSchema, type CatalogCardRecord } from "@mooligan/domain/catalog-sync";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 
-type CatalogMetaRow = {
-  card_count: number;
-  updated_at: string;
-  version: string;
-};
+import { readCatalogRelease, refreshCatalogRelease } from "./catalog-release.js";
 
-const pageSize = 500;
 const api = new Hono<{ Bindings: Env }>();
-
-api.use("*", cors());
 
 api.get("/health", (context) => context.json({ status: "ok" as const }));
 
-api.get("/catalog", async (context) => {
-  const catalog = await context.env.DB.prepare(
-    "SELECT version, card_count, updated_at FROM catalog_meta WHERE singleton = 1",
-  ).first<CatalogMetaRow>();
+api.get("/catalog/release", async (context) => {
+  let release = await readCatalogRelease(context.env.DB);
 
-  if (!catalog) {
-    return context.json({ error: "catalog_unavailable" as const }, 503);
+  if (!release) {
+    try {
+      await synchronizeCatalogRelease(context.env);
+      release = await readCatalogRelease(context.env.DB);
+    } catch {
+      return context.json({ error: "catalog_release_unavailable" as const }, 503);
+    }
   }
 
-  return context.json(
-    CatalogSnapshotSchema.parse({
-      version: catalog.version,
-      cardCount: catalog.card_count,
-      updatedAt: catalog.updated_at,
-    }),
-  );
+  return release
+    ? context.json(release)
+    : context.json({ error: "catalog_release_unavailable" as const }, 503);
 });
 
-api.get("/catalog/cards", async (context) => {
-  const version = context.req.query("version");
-  const cursor = context.req.query("cursor") ?? "";
-
-  if (!version || cursor.length > 128) {
-    return context.json({ error: "invalid_request" as const }, 400);
+async function synchronizeCatalogRelease(environment: Env) {
+  try {
+    const result = await refreshCatalogRelease(environment.DB);
+    console.log(JSON.stringify({ event: "catalog_release_sync", result }));
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+        event: "catalog_release_sync_failed",
+      }),
+    );
+    throw error;
   }
+}
 
-  const catalog = await context.env.DB.prepare(
-    "SELECT version FROM catalog_meta WHERE singleton = 1",
-  ).first<{ version: string }>();
+const worker = {
+  fetch: api.fetch,
+  scheduled(_controller, environment, context) {
+    context.waitUntil(synchronizeCatalogRelease(environment));
+  },
+} satisfies ExportedHandler<Env>;
 
-  if (!catalog) {
-    return context.json({ error: "catalog_unavailable" as const }, 503);
-  }
-
-  if (catalog.version !== version) {
-    return context.json({ error: "catalog_changed" as const }, 409);
-  }
-
-  const { results } = await context.env.DB.prepare(
-    `SELECT id, oracle_id, name, set_code, collector_number, json, updated_at
-     FROM cards
-     WHERE id > ?
-     ORDER BY id
-    LIMIT ?`,
-  )
-    .bind(cursor, pageSize + 1)
-    .all<CatalogCardRecord>();
-
-  const hasNextPage = results.length > pageSize;
-  const cards = hasNextPage ? results.slice(0, pageSize) : results;
-
-  return context.json(
-    CatalogPageSchema.parse({
-      cards,
-      nextCursor: hasNextPage ? (cards.at(-1)?.id ?? null) : null,
-      version: catalog.version,
-    }),
-  );
-});
-
-export default api;
+export { api };
+export default worker;

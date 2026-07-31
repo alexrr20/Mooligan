@@ -1,19 +1,24 @@
 import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { DatabaseSync } from "node:sqlite";
 
 import { CatalogSnapshotSchema, type CatalogSnapshot } from "@mooligan/domain/catalog";
-import { CatalogPageSchema, type CatalogPage } from "@mooligan/domain/catalog-sync";
+import { CatalogReleaseSchema, type CatalogRelease } from "@mooligan/domain/catalog-sync";
 import { app, ipcMain, net, type IpcMainInvokeEvent } from "electron";
 
 import { recoverInterruptedReplacement } from "./catalog-files";
+import { importCatalog, readGzipJsonLines } from "./catalog-import";
 
 export type CatalogProgress = {
-  completed: number;
-  total: number;
+  completedBytes: number;
+  completedCards: number;
+  totalBytes: number;
 };
 
-export type CatalogStatus = { installed: false } | (CatalogSnapshot & { installed: true });
+export type CatalogStatus =
+  | { installed: false }
+  | (CatalogSnapshot & { installed: true; updateAvailable: boolean });
 
 const apiBaseUrl = process.env.MOOLIGAN_API_URL ?? "http://127.0.0.1:3000";
 let activeDownload: Promise<CatalogStatus> | undefined;
@@ -44,32 +49,47 @@ async function getCatalogStatus(): Promise<CatalogStatus> {
     throw error;
   }
 
+  let installed: CatalogSnapshot;
+
   try {
     const database = new DatabaseSync(path, { readOnly: true });
 
     try {
       const row = database
         .prepare(
-          "SELECT version, card_count AS cardCount, updated_at AS updatedAt FROM catalog_meta WHERE singleton = 1",
+          "SELECT card_count AS cardCount, updated_at AS updatedAt FROM catalog_meta WHERE singleton = 1",
         )
         .get();
 
       const snapshot = CatalogSnapshotSchema.safeParse(row);
-      return snapshot.success ? { installed: true, ...snapshot.data } : { installed: false };
+
+      if (!snapshot.success) {
+        return { installed: false };
+      }
+
+      installed = snapshot.data;
     } finally {
       database.close();
     }
   } catch {
     return { installed: false };
   }
+
+  try {
+    const latest = await fetchCatalogRelease();
+
+    return {
+      installed: true,
+      updateAvailable: latest.updatedAt !== installed.updatedAt,
+      ...installed,
+    };
+  } catch {
+    return { installed: true, updateAvailable: false, ...installed };
+  }
 }
 
 async function downloadCatalog(event: IpcMainInvokeEvent): Promise<CatalogStatus> {
-  const metadata = await fetchCatalogMeta();
-
-  if (metadata.cardCount === 0) {
-    throw new Error("The card catalog has not been published yet.");
-  }
+  const release = await fetchCatalogRelease();
 
   const destination = catalogPath();
   const partial = `${destination}.part`;
@@ -78,186 +98,84 @@ async function downloadCatalog(event: IpcMainInvokeEvent): Promise<CatalogStatus
   await mkdir(join(app.getPath("userData"), "catalog"), { recursive: true });
   await rm(partial, { force: true });
 
-  const database = new DatabaseSync(partial);
-  let completed = 0;
+  sendProgress(event, {
+    completedBytes: 0,
+    completedCards: 0,
+    totalBytes: release.compressedSize,
+  });
 
   try {
-    createCatalogSchema(database);
-    const insert = database.prepare(
-      `INSERT INTO cards
-       (id, oracle_id, name, set_code, collector_number, json, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    const response = await net.fetch(release.downloadUrl, {
+      headers: { Accept: "application/gzip,application/octet-stream;q=0.9,*/*;q=0.8" },
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error(`The card download returned HTTP ${response.status}.`);
+    }
+
+    let completedBytes = 0;
+    let completedCards = 0;
+    let lastReportedBytes = 0;
+    const reportProgress = () => {
+      sendProgress(event, {
+        completedBytes,
+        completedCards,
+        totalBytes: release.compressedSize,
+      });
+    };
+    const monitored = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          completedBytes += chunk.byteLength;
+
+          if (
+            completedBytes === release.compressedSize ||
+            completedBytes - lastReportedBytes >= 1024 * 1024
+          ) {
+            lastReportedBytes = completedBytes;
+            reportProgress();
+          }
+
+          controller.enqueue(chunk);
+        },
+      }),
     );
+    const lines = readGzipJsonLines(Readable.from(monitored));
+    const snapshot = await importCatalog(partial, release, lines, (count) => {
+      completedCards = count;
+      reportProgress();
+    });
 
-    let cursor: string | null = "";
-
-    sendProgress(event, { completed, total: metadata.cardCount });
-
-    while (cursor !== null) {
-      const page = await fetchCatalogPage(metadata.version, cursor);
-
-      if (page.version !== metadata.version) {
-        throw new Error("The card catalog changed during the download. Please try again.");
-      }
-
-      database.exec("BEGIN");
-
-      try {
-        for (const card of page.cards) {
-          insert.run(
-            card.id,
-            card.oracle_id,
-            card.name,
-            card.set_code,
-            card.collector_number,
-            card.json,
-            card.updated_at,
-          );
-        }
-
-        database.exec("COMMIT");
-      } catch (error) {
-        database.exec("ROLLBACK");
-        throw error;
-      }
-
-      completed += page.cards.length;
-      sendProgress(event, { completed, total: metadata.cardCount });
-
-      if (page.nextCursor !== null && page.nextCursor <= cursor) {
-        throw new Error("The card catalog returned an invalid cursor.");
-      }
-
-      cursor = page.nextCursor;
+    if (completedBytes !== release.compressedSize) {
+      throw new Error("The card download was incomplete.");
     }
 
-    const currentMetadata = await fetchCatalogMeta();
-
-    if (
-      completed !== metadata.cardCount ||
-      currentMetadata.version !== metadata.version ||
-      currentMetadata.cardCount !== metadata.cardCount
-    ) {
-      throw new Error("The card catalog changed during the download. Please try again.");
-    }
-
-    database
-      .prepare(
-        `INSERT INTO catalog_meta (singleton, version, card_count, updated_at)
-         VALUES (1, ?, ?, ?)`,
-      )
-      .run(metadata.version, metadata.cardCount, metadata.updatedAt);
+    await replaceCatalog(partial, destination, backup);
+    return { installed: true, updateAvailable: false, ...snapshot };
   } catch (error) {
-    database.close();
     await rm(partial, { force: true });
     throw error;
   }
-
-  database.close();
-  validateCatalog(partial, metadata);
-  await replaceCatalog(partial, destination, backup);
-
-  return { installed: true, ...metadata };
 }
 
-function createCatalogSchema(database: DatabaseSync) {
-  database.exec(`
-    CREATE TABLE catalog_meta (
-      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-      version TEXT NOT NULL,
-      card_count INTEGER NOT NULL CHECK (card_count >= 0),
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE cards (
-      id TEXT PRIMARY KEY,
-      oracle_id TEXT,
-      name TEXT NOT NULL,
-      set_code TEXT NOT NULL,
-      collector_number TEXT NOT NULL,
-      json TEXT NOT NULL CHECK (json_valid(json)),
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE INDEX cards_name ON cards (name);
-    CREATE INDEX cards_oracle_id ON cards (oracle_id);
-    CREATE INDEX cards_set_code ON cards (set_code);
-  `);
-}
-
-async function fetchCatalogMeta(): Promise<CatalogSnapshot> {
-  const response = await net.fetch(catalogUrl("catalog"));
+async function fetchCatalogRelease(): Promise<CatalogRelease> {
+  const response = await net.fetch(catalogUrl("catalog/release"));
 
   if (!response.ok) {
     throw new Error(
       response.status === 503
-        ? "The card catalog has not been published yet."
+        ? "The card catalog release has not been published yet."
         : `The catalog service returned HTTP ${response.status}.`,
     );
   }
 
-  const snapshot = CatalogSnapshotSchema.safeParse(await response.json());
+  const release = CatalogReleaseSchema.safeParse(await response.json());
 
-  if (!snapshot.success) {
-    throw new Error("The catalog service returned invalid metadata.");
+  if (!release.success) {
+    throw new Error("The catalog service returned an invalid release.");
   }
 
-  return snapshot.data;
-}
-
-async function fetchCatalogPage(version: string, cursor: string): Promise<CatalogPage> {
-  const url = new URL(catalogUrl("catalog/cards"));
-  url.searchParams.set("version", version);
-
-  if (cursor) {
-    url.searchParams.set("cursor", cursor);
-  }
-
-  const response = await net.fetch(url.toString());
-
-  if (!response.ok) {
-    throw new Error(
-      response.status === 409
-        ? "The card catalog changed during the download. Please try again."
-        : `The catalog service returned HTTP ${response.status}.`,
-    );
-  }
-
-  const page = CatalogPageSchema.safeParse(await response.json());
-
-  if (!page.success) {
-    throw new Error("The catalog service returned an invalid card page.");
-  }
-
-  return page.data;
-}
-
-function validateCatalog(path: string, expected: CatalogSnapshot) {
-  const database = new DatabaseSync(path, { readOnly: true });
-
-  try {
-    const check = database.prepare("PRAGMA quick_check").get();
-    const metadata = database
-      .prepare(
-        "SELECT version, card_count AS cardCount, updated_at AS updatedAt FROM catalog_meta WHERE singleton = 1",
-      )
-      .get();
-    const count = database.prepare("SELECT COUNT(*) AS cardCount FROM cards").get();
-    const snapshot = CatalogSnapshotSchema.safeParse(metadata);
-
-    if (
-      !isRecord(check) ||
-      check.quick_check !== "ok" ||
-      !snapshot.success ||
-      !isRecord(count) ||
-      count.cardCount !== expected.cardCount ||
-      snapshot.data.version !== expected.version
-    ) {
-      throw new Error("The downloaded card database failed validation.");
-    }
-  } finally {
-    database.close();
-  }
+  return release.data;
 }
 
 async function replaceCatalog(partial: string, destination: string, backup: string) {
@@ -299,8 +217,4 @@ function sendProgress(event: IpcMainInvokeEvent, progress: CatalogProgress) {
   if (!event.sender.isDestroyed()) {
     event.sender.send("catalog:progress", progress);
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

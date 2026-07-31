@@ -1,62 +1,89 @@
 import assert from "node:assert/strict";
-import { test } from "vite-plus/test";
+import { test, vi } from "vite-plus/test";
 
-import api from "../src/index.ts";
+import { refreshCatalogRelease } from "../src/catalog-release.ts";
+import { api } from "../src/index.ts";
 
-const card = {
-  collector_number: "1",
-  id: "demo-001",
-  json: '{"id":"demo-001","name":"Mooligan Test Card"}',
-  name: "Mooligan Test Card",
-  oracle_id: null,
-  set_code: "moo",
-  updated_at: "2026-07-27T20:50:00Z",
-};
-
-test("GET /health reports a CORS-enabled healthy service", async () => {
+test("GET /health reports a healthy service", async () => {
   const response = await api.request("http://localhost/health");
 
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^application\/json/);
   assert.deepEqual(await response.json(), { status: "ok" });
-  assert.equal(response.headers.get("access-control-allow-origin"), "*");
 });
 
-test("GET /catalog and /catalog/cards expose a versioned catalog", async () => {
-  const environment = { DB: catalogDatabase() } satisfies Pick<Env, "DB">;
-
-  const metadataResponse = await api.request("http://localhost/catalog", undefined, environment);
-  const cardsResponse = await api.request(
-    "http://localhost/catalog/cards?version=dev-1",
-    undefined,
-    environment,
-  );
-
-  assert.equal(metadataResponse.status, 200);
-  assert.deepEqual(await metadataResponse.json(), {
-    version: "dev-1",
-    cardCount: 1,
-    updatedAt: "2026-07-27T20:50:00Z",
+test("GET /catalog/release exposes the current Scryfall archive", async () => {
+  const { database } = releaseDatabase({
+    compressed_size: 77_064_542,
+    download_url: "https://data.scryfall.io/default-cards/test.jsonl.gz",
+    updated_at: "2026-07-31T09:11:02.266+00:00",
   });
-  assert.equal(cardsResponse.status, 200);
-  assert.deepEqual(await cardsResponse.json(), {
-    cards: [card],
-    nextCursor: null,
-    version: "dev-1",
+  const response = await api.request("http://localhost/catalog/release", undefined, {
+    DB: database,
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    compressedSize: 77_064_542,
+    downloadUrl: "https://data.scryfall.io/default-cards/test.jsonl.gz",
+    updatedAt: "2026-07-31T09:11:02.266+00:00",
   });
 });
 
-test("GET /catalog/cards rejects a stale catalog version", async () => {
-  const response = await api.request("http://localhost/catalog/cards?version=old", undefined, {
-    DB: catalogDatabase(),
-  });
+test("GET /catalog/release bootstraps an empty catalog", async () => {
+  const store = releaseDatabase();
+  const source = {
+    compressed_size: 77_064_542,
+    jsonl_download_uri: "https://data.scryfall.io/default-cards/test.jsonl.gz",
+    type: "default_cards",
+    updated_at: "2026-07-31T09:11:02.266+00:00",
+  };
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(source));
 
-  assert.equal(response.status, 409);
-  assert.deepEqual(await response.json(), { error: "catalog_changed" });
+  try {
+    const response = await api.request("http://localhost/catalog/release", undefined, {
+      DB: store.database,
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(store.writeCount(), 1);
+    assert.deepEqual(await response.json(), {
+      compressedSize: source.compressed_size,
+      downloadUrl: source.jsonl_download_uri,
+      updatedAt: source.updated_at,
+    });
+  } finally {
+    fetchMock.mockRestore();
+  }
 });
 
-function catalogDatabase() {
-  return {
+test("the release sync writes only when Scryfall publishes a new archive", async () => {
+  const store = releaseDatabase();
+  const source = {
+    compressed_size: 77_064_542,
+    jsonl_download_uri: "https://data.scryfall.io/default-cards/test.jsonl.gz",
+    type: "default_cards",
+    updated_at: "2026-07-31T09:11:02.266+00:00",
+  };
+  const fetcher = async () => Response.json(source);
+
+  assert.equal(await refreshCatalogRelease(store.database, fetcher), "updated");
+  assert.equal(await refreshCatalogRelease(store.database, fetcher), "unchanged");
+  assert.equal(store.writeCount(), 1);
+  assert.equal(store.current()?.updated_at, source.updated_at);
+});
+
+type ReleaseRow = {
+  compressed_size: number;
+  download_url: string;
+  updated_at: string;
+};
+
+function releaseDatabase(initial?: ReleaseRow) {
+  let current = initial;
+  let writes = 0;
+
+  const database = {
     prepare(query: string) {
       let parameters: unknown[] = [];
       const statement = {
@@ -65,27 +92,33 @@ function catalogDatabase() {
           return statement;
         },
         async first<T>() {
-          if (query.includes("card_count")) {
-            return {
-              card_count: 1,
-              updated_at: "2026-07-27T20:50:00Z",
-              version: "dev-1",
-            } as T;
+          if (!current) {
+            return null;
           }
 
-          return { version: "dev-1" } as T;
+          return (
+            query.includes("compressed_size") ? current : { updated_at: current.updated_at }
+          ) as T;
         },
-        async all<T>() {
-          const cursor = parameters[0];
-          return {
-            meta: {},
-            results: cursor === "" ? ([card] as T[]) : [],
-            success: true,
+        async run() {
+          const [updatedAt, downloadUrl, compressedSize] = parameters;
+          current = {
+            compressed_size: compressedSize as number,
+            download_url: downloadUrl as string,
+            updated_at: updatedAt as string,
           };
+          writes += 1;
+          return { success: true };
         },
       };
 
       return statement as D1PreparedStatement;
     },
   } as D1Database;
+
+  return {
+    current: () => current,
+    database,
+    writeCount: () => writes,
+  };
 }

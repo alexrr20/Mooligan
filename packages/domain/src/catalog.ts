@@ -104,6 +104,5 @@ export type CardLegality = z.infer<typeof CardLegalitySchema>;
 export const CatalogSnapshotSchema = z.object({
   cardCount: z.number().int().nonnegative(),
   updatedAt: dateTimeSchema,
-  version: textSchema,
 });
 export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
