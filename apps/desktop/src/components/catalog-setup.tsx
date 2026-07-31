@@ -1,6 +1,7 @@
+import { Dialog } from "@base-ui/react/dialog";
 import * as stylex from "@stylexjs/stylex";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type SetupState =
   | { kind: "checking" }
@@ -10,7 +11,6 @@ type SetupState =
   | { kind: "ready" };
 
 export function CatalogSetup() {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const [dismissed, setDismissed] = useState(false);
   const [state, setState] = useState<SetupState>({ kind: "checking" });
   const visible = !dismissed && state.kind !== "checking" && state.kind !== "ready";
@@ -49,24 +49,6 @@ export function CatalogSetup() {
     };
   }, []);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-
-    if (!dialog || !visible) {
-      return;
-    }
-
-    if (!dialog.open) {
-      dialog.showModal();
-    }
-
-    return () => {
-      if (dialog.open) {
-        dialog.close();
-      }
-    };
-  }, [visible]);
-
   if (!visible) {
     return null;
   }
@@ -97,110 +79,108 @@ export function CatalogSetup() {
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      {...stylex.props(styles.dialog)}
-      data-catalog-dialog
-      onCancel={(event) => {
-        if (downloading) {
-          event.preventDefault();
-        } else {
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open && !downloading) {
           setDismissed(true);
         }
       }}
     >
-      <motion.div
-        {...stylex.props(styles.panel)}
-        initial={{ opacity: 0, scale: 0.985, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <div {...stylex.props(styles.topline)}>
-          <span>First run / Card index</span>
-          <span>{downloading ? "Receiving records" : "Local setup"}</span>
-        </div>
+      <Dialog.Portal>
+        <Dialog.Backdrop {...stylex.props(styles.backdrop)} />
+        <Dialog.Viewport {...stylex.props(styles.viewport)}>
+          <Dialog.Popup {...stylex.props(styles.dialog)}>
+            <motion.div
+              {...stylex.props(styles.panel)}
+              initial={{ opacity: 0, scale: 0.985, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div {...stylex.props(styles.topline)}>
+                <span>First run / Card index</span>
+                <span>{downloading ? "Receiving records" : "Local setup"}</span>
+              </div>
 
-        <div {...stylex.props(styles.layout)}>
-          <div {...stylex.props(styles.mark)} aria-hidden="true">
-            <span {...stylex.props(styles.markNumber)}>∞</span>
-            <span {...stylex.props(styles.markLabel)}>Cards</span>
-          </div>
-
-          <div {...stylex.props(styles.copy)}>
-            <p {...stylex.props(styles.eyebrow)}>One quiet download</p>
-            <h2 {...stylex.props(styles.title)}>
-              Keep the whole index
-              <br />
-              close at hand.
-            </h2>
-            <p {...stylex.props(styles.description)}>
-              Download the card library to this device for instant search and offline browsing.
-              Prices will still be fetched when you ask for them.
-            </p>
-
-            {state.kind === "error" ? (
-              <p {...stylex.props(styles.error)} role="alert">
-                {cleanError(state.message)}
-              </p>
-            ) : null}
-
-            {downloading ? (
-              <div {...stylex.props(styles.progressBlock)} aria-live="polite">
-                <div {...stylex.props(styles.progressMeta)}>
-                  <span>Building local index</span>
-                  <span>
-                    {progress?.total
-                      ? `${progress.completed.toLocaleString()} / ${progress.total.toLocaleString()}`
-                      : "Connecting…"}
-                  </span>
+              <div {...stylex.props(styles.layout)}>
+                <div {...stylex.props(styles.mark)} aria-hidden="true">
+                  <span {...stylex.props(styles.markNumber)}>∞</span>
+                  <span {...stylex.props(styles.markLabel)}>Cards</span>
                 </div>
-                <div
-                  {...stylex.props(styles.progressTrack)}
-                  role="progressbar"
-                  aria-label="Downloading card library"
-                  aria-valuemax={progress?.total || undefined}
-                  aria-valuenow={progress?.total ? progress.completed : undefined}
-                >
-                  <motion.div
-                    {...stylex.props(styles.progressFill)}
-                    animate={{ scaleX: progressRatio }}
-                    transition={{ duration: 0.24, ease: "easeOut" }}
-                  />
+
+                <div {...stylex.props(styles.copy)}>
+                  <p {...stylex.props(styles.eyebrow)}>One quiet download</p>
+                  <Dialog.Title {...stylex.props(styles.title)}>
+                    Keep the whole index
+                    <br />
+                    close at hand.
+                  </Dialog.Title>
+                  <Dialog.Description {...stylex.props(styles.description)}>
+                    Download the card library to this device for instant search and offline
+                    browsing. Prices will still be fetched when you ask for them.
+                  </Dialog.Description>
+
+                  {state.kind === "error" ? (
+                    <p {...stylex.props(styles.error)} role="alert">
+                      {cleanError(state.message)}
+                    </p>
+                  ) : null}
+
+                  {downloading ? (
+                    <div {...stylex.props(styles.progressBlock)} aria-live="polite">
+                      <div {...stylex.props(styles.progressMeta)}>
+                        <span>Building local index</span>
+                        <span>
+                          {progress?.total
+                            ? `${progress.completed.toLocaleString()} / ${progress.total.toLocaleString()}`
+                            : "Connecting…"}
+                        </span>
+                      </div>
+                      <div
+                        {...stylex.props(styles.progressTrack)}
+                        role="progressbar"
+                        aria-label="Downloading card library"
+                        aria-valuemax={progress?.total || undefined}
+                        aria-valuenow={progress?.total ? progress.completed : undefined}
+                      >
+                        <motion.div
+                          {...stylex.props(styles.progressFill)}
+                          animate={{ scaleX: progressRatio }}
+                          transition={{ duration: 0.24, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div {...stylex.props(styles.actions)}>
+                    <button
+                      {...stylex.props(styles.primaryButton)}
+                      type="button"
+                      disabled={downloading}
+                      onClick={() => void download()}
+                    >
+                      {downloading
+                        ? "Downloading…"
+                        : state.kind === "error"
+                          ? "Try again"
+                          : "Download library"}
+                      <span aria-hidden="true">↓</span>
+                    </button>
+                    <Dialog.Close {...stylex.props(styles.secondaryButton)} disabled={downloading}>
+                      Not now
+                    </Dialog.Close>
+                  </div>
                 </div>
               </div>
-            ) : null}
 
-            <div {...stylex.props(styles.actions)}>
-              <button
-                {...stylex.props(styles.primaryButton)}
-                type="button"
-                disabled={downloading}
-                onClick={() => void download()}
-              >
-                {downloading
-                  ? "Downloading…"
-                  : state.kind === "error"
-                    ? "Try again"
-                    : "Download library"}
-                <span aria-hidden="true">↓</span>
-              </button>
-              <button
-                {...stylex.props(styles.secondaryButton)}
-                type="button"
-                disabled={downloading}
-                onClick={() => setDismissed(true)}
-              >
-                Not now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <p {...stylex.props(styles.footnote)}>
-          Stored in Mooligan’s private application data. No folder selection needed.
-        </p>
-      </motion.div>
-    </dialog>
+              <p {...stylex.props(styles.footnote)}>
+                Stored in Mooligan’s private application data. No folder selection needed.
+              </p>
+            </motion.div>
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -209,10 +189,25 @@ function cleanError(message: string) {
 }
 
 const styles = stylex.create({
+  backdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 100,
+    backgroundColor: "rgba(13, 14, 12, 0.76)",
+    backdropFilter: "blur(5px)",
+  },
+  viewport: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 100,
+    padding: "28px",
+    display: "grid",
+    placeItems: "center",
+    overflowY: "auto",
+  },
   dialog: {
     width: "min(760px, calc(100vw - 56px))",
     maxWidth: "none",
-    margin: "auto",
     padding: 0,
     overflow: "visible",
     border: "1px solid #1b1d19",
@@ -220,6 +215,7 @@ const styles = stylex.create({
     color: "#1b1d19",
     backgroundColor: "#f1efe8",
     boxShadow: "22px 24px 0 rgba(17, 18, 15, 0.22)",
+    outline: "none",
   },
   panel: {
     padding: "0 30px 24px",

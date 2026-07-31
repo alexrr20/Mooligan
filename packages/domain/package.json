@@ -1,0 +1,27 @@
+{
+  "name": "@mooligan/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./catalog": "./src/catalog.ts",
+    "./catalog-sync": "./src/catalog-sync.ts",
+    "./collection": "./src/collection.ts",
+    "./decks": "./src/decks.ts",
+    "./lists": "./src/lists.ts",
+    "./market": "./src/market.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "node --test test/schemas.test.ts"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

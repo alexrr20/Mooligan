@@ -1,23 +1,19 @@
-type CatalogProgress = {
-  completed: number;
-  total: number;
-};
-
-type CatalogStatus =
-  | { installed: false }
-  | {
-      cardCount: number;
-      installed: true;
-      updatedAt: string;
-      version: string;
-    };
+import type {
+  CatalogProgress as CatalogProgressType,
+  CatalogStatus as CatalogStatusType,
+} from "../electron/catalog";
 
 type CatalogApi = {
-  download: () => Promise<CatalogStatus>;
-  onProgress: (callback: (progress: CatalogProgress) => void) => () => void;
-  status: () => Promise<CatalogStatus>;
+  download: () => Promise<CatalogStatusType>;
+  onProgress: (callback: (progress: CatalogProgressType) => void) => () => void;
+  status: () => Promise<CatalogStatusType>;
 };
 
-interface Window {
-  catalog?: CatalogApi;
+declare global {
+  type CatalogProgress = CatalogProgressType;
+  type CatalogStatus = CatalogStatusType;
+
+  interface Window {
+    catalog?: CatalogApi;
+  }
 }
