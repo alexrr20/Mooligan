@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 type SetupState =
   | { kind: "checking" }
   | { kind: "missing" }
-  | { kind: "downloading"; progress: CatalogProgress }
-  | { kind: "error"; message: string }
+  | { kind: "outdated" }
+  | { kind: "downloading"; progress: CatalogProgress; updating: boolean }
+  | { kind: "error"; message: string; updating: boolean }
   | { kind: "ready" };
 
 export function CatalogSetup() {
@@ -26,7 +27,13 @@ export function CatalogSetup() {
     let active = true;
     const stopProgress = catalog.onProgress((progress) => {
       if (active) {
-        setState({ kind: "downloading", progress });
+        setState((current) => ({
+          kind: "downloading",
+          progress,
+          updating:
+            current.kind === "outdated" ||
+            ((current.kind === "downloading" || current.kind === "error") && current.updating),
+        }));
       }
     });
 
@@ -34,12 +41,18 @@ export function CatalogSetup() {
       .status()
       .then((status) => {
         if (active) {
-          setState({ kind: status.installed ? "ready" : "missing" });
+          setState({
+            kind: !status.installed ? "missing" : status.updateAvailable ? "outdated" : "ready",
+          });
         }
       })
       .catch(() => {
         if (active) {
-          setState({ kind: "error", message: "Mooligan could not check the local card library." });
+          setState({
+            kind: "error",
+            message: "Mooligan could not check the local card library.",
+            updating: false,
+          });
         }
       });
 
@@ -54,8 +67,12 @@ export function CatalogSetup() {
   }
 
   const downloading = state.kind === "downloading";
+  const updating =
+    state.kind === "outdated" ||
+    ((state.kind === "downloading" || state.kind === "error") && state.updating);
   const progress = downloading ? state.progress : undefined;
-  const progressRatio = progress && progress.total > 0 ? progress.completed / progress.total : 0;
+  const progressRatio =
+    progress && progress.totalBytes > 0 ? progress.completedBytes / progress.totalBytes : 0;
 
   async function download() {
     const catalog = window.catalog;
@@ -64,7 +81,11 @@ export function CatalogSetup() {
       return;
     }
 
-    setState({ kind: "downloading", progress: { completed: 0, total: 0 } });
+    setState({
+      kind: "downloading",
+      progress: { completedBytes: 0, completedCards: 0, totalBytes: 0 },
+      updating,
+    });
 
     try {
       await catalog.download();
@@ -74,6 +95,7 @@ export function CatalogSetup() {
         kind: "error",
         message:
           error instanceof Error ? error.message : "The card library could not be downloaded.",
+        updating,
       });
     }
   }
@@ -98,8 +120,14 @@ export function CatalogSetup() {
               transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             >
               <div {...stylex.props(styles.topline)}>
-                <span>First run / Card index</span>
-                <span>{downloading ? "Receiving records" : "Local setup"}</span>
+                <span>{updating ? "Catalog refresh / Card index" : "First run / Card index"}</span>
+                <span>
+                  {downloading
+                    ? "Receiving & indexing"
+                    : updating
+                      ? "Update available"
+                      : "Local setup"}
+                </span>
               </div>
 
               <div {...stylex.props(styles.layout)}>
@@ -109,15 +137,28 @@ export function CatalogSetup() {
                 </div>
 
                 <div {...stylex.props(styles.copy)}>
-                  <p {...stylex.props(styles.eyebrow)}>One quiet download</p>
+                  <p {...stylex.props(styles.eyebrow)}>
+                    {updating ? "A fresh catalog is ready" : "One quiet download"}
+                  </p>
                   <Dialog.Title {...stylex.props(styles.title)}>
-                    Keep the whole index
-                    <br />
-                    close at hand.
+                    {updating ? (
+                      <>
+                        Bring the whole index
+                        <br />
+                        up to date.
+                      </>
+                    ) : (
+                      <>
+                        Keep the whole index
+                        <br />
+                        close at hand.
+                      </>
+                    )}
                   </Dialog.Title>
                   <Dialog.Description {...stylex.props(styles.description)}>
-                    Download the card library to this device for instant search and offline
-                    browsing. Prices will still be fetched when you ask for them.
+                    {updating
+                      ? "A newer card library is ready with the latest cards, sets, and corrections. Your current library stays available until the update is complete."
+                      : "Download the card library to this device for instant search and offline browsing. Prices will still be fetched when you ask for them."}
                   </Dialog.Description>
 
                   {state.kind === "error" ? (
@@ -129,19 +170,19 @@ export function CatalogSetup() {
                   {downloading ? (
                     <div {...stylex.props(styles.progressBlock)} aria-live="polite">
                       <div {...stylex.props(styles.progressMeta)}>
-                        <span>Building local index</span>
+                        <span>{updating ? "Refreshing local index" : "Building local index"}</span>
                         <span>
-                          {progress?.total
-                            ? `${progress.completed.toLocaleString()} / ${progress.total.toLocaleString()}`
+                          {progress?.totalBytes
+                            ? `${formatBytes(progress.completedBytes)} / ${formatBytes(progress.totalBytes)} · ${progress.completedCards.toLocaleString()} cards`
                             : "Connecting…"}
                         </span>
                       </div>
                       <div
                         {...stylex.props(styles.progressTrack)}
                         role="progressbar"
-                        aria-label="Downloading card library"
-                        aria-valuemax={progress?.total || undefined}
-                        aria-valuenow={progress?.total ? progress.completed : undefined}
+                        aria-label={updating ? "Updating card library" : "Downloading card library"}
+                        aria-valuemax={progress?.totalBytes || undefined}
+                        aria-valuenow={progress?.totalBytes ? progress.completedBytes : undefined}
                       >
                         <motion.div
                           {...stylex.props(styles.progressFill)}
@@ -162,8 +203,12 @@ export function CatalogSetup() {
                       {downloading
                         ? "Downloading…"
                         : state.kind === "error"
-                          ? "Try again"
-                          : "Download library"}
+                          ? updating
+                            ? "Try update again"
+                            : "Try again"
+                          : updating
+                            ? "Update library"
+                            : "Download library"}
                       <span aria-hidden="true">↓</span>
                     </button>
                     <Dialog.Close {...stylex.props(styles.secondaryButton)} disabled={downloading}>
@@ -174,7 +219,9 @@ export function CatalogSetup() {
               </div>
 
               <p {...stylex.props(styles.footnote)}>
-                Stored in Mooligan’s private application data. No folder selection needed.
+                {updating
+                  ? "The current library remains in place until its replacement is verified."
+                  : "Stored in Mooligan’s private application data. No folder selection needed."}
               </p>
             </motion.div>
           </Dialog.Popup>
@@ -186,6 +233,10 @@ export function CatalogSetup() {
 
 function cleanError(message: string) {
   return message.replace(/^Error invoking remote method '[^']+': Error: /, "");
+}
+
+function formatBytes(value: number) {
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 const styles = stylex.create({

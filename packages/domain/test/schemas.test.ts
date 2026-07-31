@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CatalogPageSchema } from "../src/catalog-sync.ts";
+import { CatalogReleaseSchema } from "../src/catalog-sync.ts";
 import { DeckEntrySchema } from "../src/decks.ts";
 
 void test("deck entries require an exact printing, finish, and positive quantity", () => {
@@ -18,23 +18,17 @@ void test("deck entries require an exact printing, finish, and positive quantity
   assert.equal(DeckEntrySchema.safeParse({ ...entry, quantity: 0 }).success, false);
 });
 
-void test("catalog pages cannot exceed the download page size", () => {
-  const card = {
-    collector_number: "1",
-    id: "printing-1",
-    json: "{}",
-    name: "Mooligan Test Card",
-    oracle_id: null,
-    set_code: "moo",
-    updated_at: "2026-07-31T10:00:00Z",
+void test("catalog releases require an HTTPS archive and timestamp", () => {
+  const release = {
+    compressedSize: 1024,
+    downloadUrl: "https://data.scryfall.io/default-cards/test.jsonl.gz",
+    updatedAt: "2026-07-31T09:11:02.266+00:00",
   };
 
+  assert.deepEqual(CatalogReleaseSchema.parse(release), release);
   assert.equal(
-    CatalogPageSchema.safeParse({
-      cards: Array.from({ length: 501 }, () => card),
-      nextCursor: null,
-      version: "test-1",
-    }).success,
+    CatalogReleaseSchema.safeParse({ ...release, downloadUrl: "http://example.com/cards.gz" })
+      .success,
     false,
   );
 });
