@@ -9,6 +9,7 @@ import { app, ipcMain, net, type IpcMainInvokeEvent } from "electron";
 
 import { recoverInterruptedReplacement } from "./catalog-files";
 import { importCatalog, readGzipJsonLines } from "./catalog-import";
+import { listCatalogCards, type CatalogListRequest } from "./catalog-query";
 
 export type CatalogProgress = {
   completedBytes: number;
@@ -25,6 +26,9 @@ let activeDownload: Promise<CatalogStatus> | undefined;
 
 export function registerCatalogIpc() {
   ipcMain.handle("catalog:status", getCatalogStatus);
+  ipcMain.handle("catalog:list", (_event, request: CatalogListRequest) =>
+    listCatalogCards(catalogPath(), request),
+  );
   ipcMain.handle("catalog:download", (event) => {
     activeDownload ??= downloadCatalog(event).finally(() => {
       activeDownload = undefined;

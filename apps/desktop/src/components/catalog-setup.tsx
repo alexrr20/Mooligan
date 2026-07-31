@@ -89,6 +89,7 @@ export function CatalogSetup() {
 
     try {
       await catalog.download();
+      window.dispatchEvent(new Event("catalogready"));
       setState({ kind: "ready" });
     } catch (error) {
       setState({

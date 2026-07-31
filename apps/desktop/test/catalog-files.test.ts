@@ -9,6 +9,7 @@ import { gzipSync } from "node:zlib";
 
 import { recoverInterruptedReplacement } from "../electron/catalog-files.ts";
 import { importCatalog, readGzipJsonLines } from "../electron/catalog-import.ts";
+import { listCatalogCards } from "../electron/catalog-query.ts";
 
 void test("an interrupted catalog replacement restores the previous catalog", async () => {
   const directory = await mkdtemp(join(tmpdir(), "mooligan-catalog-"));
@@ -78,6 +79,20 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
           { id: "printing-2", set_code: "moo" },
         ],
       );
+      assert.deepEqual(listCatalogCards(destination, { limit: 1, query: "second" }), {
+        cards: [
+          {
+            collectorNumber: "2",
+            id: "printing-2",
+            name: "Second Test Card",
+            rarity: null,
+            setCode: "moo",
+            setName: null,
+            typeLine: null,
+          },
+        ],
+        total: 1,
+      });
     } finally {
       database.close();
     }
