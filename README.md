@@ -5,6 +5,7 @@ A minimal Electron desktop and Hono API monorepo built with Vite+ and pnpm.
 - `apps/desktop`: Electron, React 19, TanStack Router, StyleX, and Motion
 - `apps/api`: Hono 4 for Cloudflare Workers, served locally by Wrangler on
   `http://127.0.0.1:3000`
+- `packages/domain`: shared catalog, collection, deck, list, and market types
 
 Node.js 22.18 or newer is required.
 

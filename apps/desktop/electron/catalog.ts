@@ -2,6 +2,8 @@ import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { CatalogSnapshotSchema, type CatalogSnapshot } from "@mooligan/domain/catalog";
+import { CatalogPageSchema, type CatalogPage } from "@mooligan/domain/catalog-sync";
 import { app, ipcMain, net, type IpcMainInvokeEvent } from "electron";
 
 import { recoverInterruptedReplacement } from "./catalog-files";
@@ -11,36 +13,7 @@ export type CatalogProgress = {
   total: number;
 };
 
-export type CatalogStatus =
-  | { installed: false }
-  | {
-      cardCount: number;
-      installed: true;
-      updatedAt: string;
-      version: string;
-    };
-
-type CatalogMeta = {
-  cardCount: number;
-  updatedAt: string;
-  version: string;
-};
-
-type Card = {
-  collector_number: string;
-  id: string;
-  json: string;
-  name: string;
-  oracle_id: string | null;
-  set_code: string;
-  updated_at: string;
-};
-
-type CatalogPage = {
-  cards: Card[];
-  nextCursor: string | null;
-  version: string;
-};
+export type CatalogStatus = { installed: false } | (CatalogSnapshot & { installed: true });
 
 const apiBaseUrl = process.env.MOOLIGAN_API_URL ?? "http://127.0.0.1:3000";
 let activeDownload: Promise<CatalogStatus> | undefined;
@@ -81,7 +54,8 @@ async function getCatalogStatus(): Promise<CatalogStatus> {
         )
         .get();
 
-      return isCatalogMeta(row) ? { installed: true, ...row } : { installed: false };
+      const snapshot = CatalogSnapshotSchema.safeParse(row);
+      return snapshot.success ? { installed: true, ...snapshot.data } : { installed: false };
     } finally {
       database.close();
     }
@@ -211,7 +185,7 @@ function createCatalogSchema(database: DatabaseSync) {
   `);
 }
 
-async function fetchCatalogMeta(): Promise<CatalogMeta> {
+async function fetchCatalogMeta(): Promise<CatalogSnapshot> {
   const response = await net.fetch(catalogUrl("catalog"));
 
   if (!response.ok) {
@@ -222,13 +196,13 @@ async function fetchCatalogMeta(): Promise<CatalogMeta> {
     );
   }
 
-  const body: unknown = await response.json();
+  const snapshot = CatalogSnapshotSchema.safeParse(await response.json());
 
-  if (!isCatalogMeta(body)) {
+  if (!snapshot.success) {
     throw new Error("The catalog service returned invalid metadata.");
   }
 
-  return body;
+  return snapshot.data;
 }
 
 async function fetchCatalogPage(version: string, cursor: string): Promise<CatalogPage> {
@@ -249,16 +223,16 @@ async function fetchCatalogPage(version: string, cursor: string): Promise<Catalo
     );
   }
 
-  const body: unknown = await response.json();
+  const page = CatalogPageSchema.safeParse(await response.json());
 
-  if (!isCatalogPage(body)) {
+  if (!page.success) {
     throw new Error("The catalog service returned an invalid card page.");
   }
 
-  return body;
+  return page.data;
 }
 
-function validateCatalog(path: string, expected: CatalogMeta) {
+function validateCatalog(path: string, expected: CatalogSnapshot) {
   const database = new DatabaseSync(path, { readOnly: true });
 
   try {
@@ -269,14 +243,15 @@ function validateCatalog(path: string, expected: CatalogMeta) {
       )
       .get();
     const count = database.prepare("SELECT COUNT(*) AS cardCount FROM cards").get();
+    const snapshot = CatalogSnapshotSchema.safeParse(metadata);
 
     if (
       !isRecord(check) ||
       check.quick_check !== "ok" ||
-      !isCatalogMeta(metadata) ||
+      !snapshot.success ||
       !isRecord(count) ||
       count.cardCount !== expected.cardCount ||
-      metadata.version !== expected.version
+      snapshot.data.version !== expected.version
     ) {
       throw new Error("The downloaded card database failed validation.");
     }
@@ -324,44 +299,6 @@ function sendProgress(event: IpcMainInvokeEvent, progress: CatalogProgress) {
   if (!event.sender.isDestroyed()) {
     event.sender.send("catalog:progress", progress);
   }
-}
-
-function isCatalogMeta(value: unknown): value is CatalogMeta {
-  return (
-    isRecord(value) &&
-    typeof value.version === "string" &&
-    value.version.length > 0 &&
-    Number.isSafeInteger(value.cardCount) &&
-    typeof value.cardCount === "number" &&
-    value.cardCount >= 0 &&
-    typeof value.updatedAt === "string" &&
-    value.updatedAt.length > 0
-  );
-}
-
-function isCatalogPage(value: unknown): value is CatalogPage {
-  return (
-    isRecord(value) &&
-    typeof value.version === "string" &&
-    (typeof value.nextCursor === "string" || value.nextCursor === null) &&
-    Array.isArray(value.cards) &&
-    value.cards.length <= 500 &&
-    value.cards.every(isCard)
-  );
-}
-
-function isCard(value: unknown): value is Card {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    value.id.length > 0 &&
-    (typeof value.oracle_id === "string" || value.oracle_id === null) &&
-    typeof value.name === "string" &&
-    typeof value.set_code === "string" &&
-    typeof value.collector_number === "string" &&
-    typeof value.json === "string" &&
-    typeof value.updated_at === "string"
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

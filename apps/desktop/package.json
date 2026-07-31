@@ -11,6 +11,8 @@
     "test": "node --test test/catalog-files.test.ts"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@mooligan/domain": "workspace:*",
     "@stylexjs/stylex": "catalog:",
     "@tanstack/react-router": "catalog:",
     "motion": "catalog:",

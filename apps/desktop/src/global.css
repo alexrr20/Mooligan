@@ -8,6 +8,10 @@ body,
   height: 100%;
 }
 
+#root {
+  isolation: isolate;
+}
+
 body {
   margin: 0;
   overflow: hidden;
@@ -40,9 +44,4 @@ button {
 ::selection {
   color: #1b1d19;
   background: #caff42;
-}
-
-[data-catalog-dialog]::backdrop {
-  background: rgba(13, 14, 12, 0.76);
-  backdrop-filter: blur(5px);
 }
