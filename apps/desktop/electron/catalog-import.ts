@@ -7,6 +7,7 @@ import { CatalogSnapshotSchema, type CatalogSnapshot } from "@mooligan/domain/ca
 import { ScryfallCardDownloadSchema, type CatalogRelease } from "@mooligan/domain/catalog-sync";
 
 const transactionSize = 500;
+export const catalogSchemaVersion = 2;
 
 export function readGzipJsonLines(input: Readable) {
   return createInterface({ input: input.pipe(createGunzip()), crlfDelay: Infinity });
@@ -27,8 +28,8 @@ export async function importCatalog(
     createCatalogSchema(database);
     const insert = database.prepare(
       `INSERT INTO cards
-       (id, oracle_id, name, set_code, collector_number, json, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, oracle_id, name, set_code, set_name, collector_number, type_line, rarity, json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     database.exec("BEGIN");
@@ -50,7 +51,10 @@ export async function importCatalog(
       const card = ScryfallCardDownloadSchema.safeParse(value);
 
       if (!card.success) {
-        throw new Error(`Card record ${completedCards + 1} is invalid.`);
+        const issue = card.error.issues[0];
+        throw new Error(
+          `Card record ${completedCards + 1} is invalid (${issue.path.join(".") || "record"}: ${issue.message}).`,
+        );
       }
 
       insert.run(
@@ -58,7 +62,10 @@ export async function importCatalog(
         card.data.oracle_id ?? null,
         card.data.name,
         card.data.set,
+        card.data.set_name,
         card.data.collector_number,
+        card.data.type_line,
+        card.data.rarity,
         line,
         release.updatedAt,
       );
@@ -84,10 +91,10 @@ export async function importCatalog(
 
     database
       .prepare(
-        `INSERT INTO catalog_meta (singleton, card_count, updated_at)
-         VALUES (1, ?, ?)`,
+        `INSERT INTO catalog_meta (singleton, schema_version, card_count, updated_at)
+         VALUES (1, ?, ?, ?)`,
       )
-      .run(completedCards, release.updatedAt);
+      .run(catalogSchemaVersion, completedCards, release.updatedAt);
     createCatalogIndexes(database);
     onProgress(completedCards);
   } catch (error) {
@@ -113,6 +120,7 @@ function createCatalogSchema(database: DatabaseSync) {
   database.exec(`
     CREATE TABLE catalog_meta (
       singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      schema_version INTEGER NOT NULL,
       card_count INTEGER NOT NULL CHECK (card_count >= 0),
       updated_at TEXT NOT NULL
     );
@@ -122,18 +130,37 @@ function createCatalogSchema(database: DatabaseSync) {
       oracle_id TEXT,
       name TEXT NOT NULL,
       set_code TEXT NOT NULL,
+      set_name TEXT NOT NULL,
       collector_number TEXT NOT NULL,
+      type_line TEXT NOT NULL,
+      rarity TEXT NOT NULL,
       json TEXT NOT NULL CHECK (json_valid(json)),
       updated_at TEXT NOT NULL
+    );
+
+    CREATE VIRTUAL TABLE card_search USING fts5(
+      name,
+      set_code,
+      collector_number,
+      set_name,
+      type_line,
+      content = 'cards',
+      content_rowid = 'rowid',
+      prefix = '2 3 4'
     );
   `);
 }
 
 function createCatalogIndexes(database: DatabaseSync) {
   database.exec(`
-    CREATE INDEX cards_name ON cards (name);
+    CREATE INDEX cards_browse_order
+      ON cards (
+        name COLLATE NOCASE,
+        set_code COLLATE NOCASE,
+        collector_number COLLATE NOCASE
+      );
     CREATE INDEX cards_oracle_id ON cards (oracle_id);
-    CREATE INDEX cards_set_code ON cards (set_code);
+    INSERT INTO card_search(card_search) VALUES ('rebuild');
   `);
 }
 
@@ -144,7 +171,11 @@ function validateCatalog(path: string, expected: CatalogSnapshot) {
     const check = database.prepare("PRAGMA quick_check").get();
     const metadata = database
       .prepare(
-        "SELECT card_count AS cardCount, updated_at AS updatedAt FROM catalog_meta WHERE singleton = 1",
+        `SELECT schema_version AS schemaVersion,
+                card_count AS cardCount,
+                updated_at AS updatedAt
+         FROM catalog_meta
+         WHERE singleton = 1`,
       )
       .get();
     const count = database.prepare("SELECT COUNT(*) AS cardCount FROM cards").get();
@@ -155,6 +186,8 @@ function validateCatalog(path: string, expected: CatalogSnapshot) {
       check.quick_check !== "ok" ||
       !snapshot.success ||
       !isRecord(count) ||
+      !isRecord(metadata) ||
+      metadata.schemaVersion !== catalogSchemaVersion ||
       count.cardCount !== expected.cardCount ||
       snapshot.data.updatedAt !== expected.updatedAt
     ) {

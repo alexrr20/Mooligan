@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Page } from "../components/page";
 
@@ -10,14 +10,18 @@ export const Route = createFileRoute("/search")({
 
 function SearchPage() {
   const [cards, setCards] = useState<CatalogCardSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState("");
+  const [total, setTotal] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [activeQuery, setActiveQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const initialLoadStarted = useRef(false);
+  const requestId = useRef(0);
 
   const load = useCallback(async (nextQuery: string, offset = 0) => {
+    const query = nextQuery.trim();
     const catalog = window.catalog;
+    const id = ++requestId.current;
 
     if (!catalog) {
       setError("Catalog browsing is available in the desktop app.");
@@ -28,41 +32,53 @@ function SearchPage() {
     setLoading(true);
     setError("");
 
+    if (offset === 0) {
+      setActiveQuery(query);
+      setHasMore(false);
+      setTotal(null);
+    }
+
     try {
-      const page = await catalog.list({ limit: 100, offset, query: nextQuery });
+      const page = await catalog.list({ limit: 100, offset, query });
+
+      if (id !== requestId.current) {
+        return;
+      }
+
       setCards((current) => (offset === 0 ? page.cards : [...current, ...page.cards]));
+      setHasMore(page.hasMore);
       setTotal(page.total);
     } catch {
+      if (id !== requestId.current) {
+        return;
+      }
+
       setCards([]);
+      setHasMore(false);
       setTotal(0);
       setError("The local card index could not be read.");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    const refresh = () => {
-      setQuery("");
-      setActiveQuery("");
+    if (!initialLoadStarted.current) {
+      initialLoadStarted.current = true;
       void load("");
-    };
-
-    window.addEventListener("catalogready", refresh);
-    return () => window.removeEventListener("catalogready", refresh);
+    }
   }, [load]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const nextQuery = query.trim();
-      setActiveQuery(nextQuery);
-      void load(nextQuery);
-    }, 160);
+    const refresh = () => void load(activeQuery);
 
-    return () => window.clearTimeout(timeout);
-  }, [load, query]);
+    window.addEventListener("catalogready", refresh);
+    return () => window.removeEventListener("catalogready", refresh);
+  }, [activeQuery, load]);
 
-  const hasMore = cards.length < total;
+  const search = useCallback((query: string) => void load(query), [load]);
 
   return (
     <Page
@@ -72,32 +88,7 @@ function SearchPage() {
       title="Every card, accounted for."
     >
       <section {...stylex.props(styles.catalog)} aria-labelledby="catalog-title">
-        <form
-          {...stylex.props(styles.searchBar)}
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const nextQuery = query.trim();
-            setActiveQuery(nextQuery);
-            void load(nextQuery);
-          }}
-        >
-          <label {...stylex.props(styles.searchLabel)} htmlFor="card-search">
-            Filter the index
-          </label>
-          <input
-            {...stylex.props(styles.searchInput)}
-            id="card-search"
-            name="query"
-            placeholder="Card, set, number, or type"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <button {...stylex.props(styles.searchButton)} disabled={loading} type="submit">
-            Search <span aria-hidden="true">→</span>
-          </button>
-        </form>
+        <SearchControls activeQuery={activeQuery} loading={loading} onSearch={search} />
 
         <div {...stylex.props(styles.indexMeta)}>
           <h2 {...stylex.props(styles.indexTitle)} id="catalog-title">
@@ -105,8 +96,10 @@ function SearchPage() {
           </h2>
           <span {...stylex.props(styles.count)} aria-live="polite">
             {loading && cards.length === 0
-              ? "Reading index…"
-              : `${total.toLocaleString()} ${total === 1 ? "printing" : "printings"}`}
+              ? activeQuery
+                ? "Searching…"
+                : "Reading index…"
+              : `${(total ?? cards.length).toLocaleString()}${total === null && hasMore ? "+" : ""} ${activeQuery ? "matches" : total === 1 ? "printing" : "printings"}`}
           </span>
         </div>
 
@@ -168,7 +161,8 @@ function SearchPage() {
               >
                 <span>{loading ? "Reading…" : "Show 100 more"}</span>
                 <span {...stylex.props(styles.moreCount)}>
-                  {cards.length.toLocaleString()} / {total.toLocaleString()}
+                  {cards.length.toLocaleString()}
+                  {total === null ? "+" : ` / ${total.toLocaleString()}`}
                 </span>
               </button>
             ) : null}
@@ -176,6 +170,54 @@ function SearchPage() {
         )}
       </section>
     </Page>
+  );
+}
+
+type SearchControlsProps = {
+  activeQuery: string;
+  loading: boolean;
+  onSearch: (query: string) => void;
+};
+
+function SearchControls({ activeQuery, loading, onSearch }: SearchControlsProps) {
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const nextQuery = query.trim();
+
+    if (nextQuery === activeQuery) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => onSearch(nextQuery), 160);
+    return () => window.clearTimeout(timeout);
+  }, [activeQuery, onSearch, query]);
+
+  return (
+    <form
+      {...stylex.props(styles.searchBar)}
+      role="search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch(query.trim());
+      }}
+    >
+      <label {...stylex.props(styles.searchLabel)} htmlFor="card-search">
+        Filter the index
+      </label>
+      <input
+        {...stylex.props(styles.searchInput)}
+        id="card-search"
+        name="query"
+        placeholder="Card, set, number, or type"
+        type="search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      <button {...stylex.props(styles.searchButton)} disabled={loading} type="submit">
+        Search <span aria-hidden="true">→</span>
+      </button>
+    </form>
   );
 }
 
