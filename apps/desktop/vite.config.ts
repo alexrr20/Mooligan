@@ -28,7 +28,10 @@ export default defineConfig(({ command }) => ({
     react(),
     electron({
       main: {
-        entry: "electron/main.ts",
+        entry: {
+          "catalog-query-worker": "electron/catalog-query-worker.ts",
+          main: "electron/main.ts",
+        },
         async onstart({ startup }) {
           await startup(["."]);
         },
