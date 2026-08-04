@@ -35,6 +35,10 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
     {
       collector_number: "1",
       id: "printing-1",
+      image_uris: {
+        normal: "https://cards.scryfall.io/normal/front/1.jpg",
+        small: "https://cards.scryfall.io/small/front/1.jpg",
+      },
       name: "Mooligan Test Card",
       object: "card",
       oracle_id: "oracle-1",
@@ -44,6 +48,31 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
       type_line: "Artifact",
     },
     {
+      collector_number: "8",
+      id: "printing-3",
+      image_uris: { small: "https://cards.scryfall.io/small/front/3.jpg" },
+      name: "Mooligan Test Card",
+      object: "card",
+      oracle_id: "oracle-1",
+      rarity: "uncommon",
+      set: "zzz",
+      set_name: "Alternate Test Set",
+      type_line: "Artifact",
+    },
+    {
+      collector_number: "A1",
+      id: "art-series-1",
+      image_uris: { small: "https://cards.scryfall.io/small/front/art.jpg" },
+      layout: "art_series",
+      name: "Mooligan Test Card",
+      object: "card",
+      oracle_id: "oracle-1",
+      rarity: "common",
+      set: "zzza",
+      set_name: "Art Series Test Set",
+      type_line: "Card",
+    },
+    {
       collector_number: "2",
       id: "printing-2",
       name: "Second Test Card",
@@ -51,7 +80,16 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
       rarity: "common",
       set: "moo",
       set_name: "Mooligan Test Set",
-      card_faces: [{ type_line: "Creature — Test" }, { type_line: "Creature — Test" }],
+      card_faces: [
+        {
+          image_uris: {
+            normal: "https://cards.scryfall.io/normal/front/2.jpg",
+            small: "https://cards.scryfall.io/small/front/2.jpg",
+          },
+          type_line: "Creature — Test",
+        },
+        { type_line: "Creature — Test" },
+      ],
     },
   ];
   const archive = gzipSync(`${cards.map((card) => JSON.stringify(card)).join("\n")}\n`);
@@ -72,18 +110,20 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
 
     try {
       assert.deepEqual(snapshot, {
-        cardCount: 2,
+        cardCount: 4,
         updatedAt: "2026-07-31T09:11:02.266+00:00",
       });
-      assert.deepEqual(progress, [2]);
+      assert.deepEqual(progress, [4]);
       assert.deepEqual(
         database
           .prepare("SELECT id, set_code FROM cards ORDER BY id")
           .all()
           .map((row) => ({ ...row })),
         [
+          { id: "art-series-1", set_code: "zzza" },
           { id: "printing-1", set_code: "moo" },
           { id: "printing-2", set_code: "moo" },
+          { id: "printing-3", set_code: "zzz" },
         ],
       );
       const queryCatalog = createCatalogQuery(database);
@@ -92,7 +132,9 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
         cards: [
           {
             collectorNumber: "1",
+            gridImageUrl: "https://cards.scryfall.io/normal/front/1.jpg",
             id: "printing-1",
+            imageUrl: "https://cards.scryfall.io/small/front/1.jpg",
             name: "Mooligan Test Card",
             rarity: "rare",
             setCode: "moo",
@@ -101,13 +143,63 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
           },
         ],
         hasMore: true,
+        total: 4,
+      });
+      const withoutArtSeries = queryCatalog({ hideArtSeries: true });
+
+      assert.equal(withoutArtSeries.total, 3);
+      assert.deepEqual(
+        withoutArtSeries.cards.map((card) => card.id),
+        ["printing-1", "printing-3", "printing-2"],
+      );
+      assert.deepEqual(
+        queryCatalog({ query: "series" }).cards.map((card) => card.id),
+        ["art-series-1"],
+      );
+      assert.deepEqual(queryCatalog({ hideArtSeries: true, query: "series" }), {
+        cards: [],
+        hasMore: false,
+        total: 0,
+      });
+      assert.deepEqual(queryCatalog({ uniqueCards: true }), {
+        cards: [
+          {
+            collectorNumber: "1",
+            gridImageUrl: "https://cards.scryfall.io/normal/front/1.jpg",
+            id: "printing-1",
+            imageUrl: "https://cards.scryfall.io/small/front/1.jpg",
+            name: "Mooligan Test Card",
+            rarity: "rare",
+            setCode: "moo",
+            setName: "Mooligan Test Set",
+            typeLine: "Artifact",
+          },
+          {
+            collectorNumber: "2",
+            gridImageUrl: "https://cards.scryfall.io/normal/front/2.jpg",
+            id: "printing-2",
+            imageUrl: "https://cards.scryfall.io/small/front/2.jpg",
+            name: "Second Test Card",
+            rarity: "common",
+            setCode: "moo",
+            setName: "Mooligan Test Set",
+            typeLine: "Creature — Test",
+          },
+        ],
+        hasMore: false,
         total: 2,
       });
+      assert.deepEqual(
+        queryCatalog({ query: "alternate", uniqueCards: true }).cards.map((card) => card.id),
+        ["printing-3"],
+      );
       assert.deepEqual(queryCatalog({ limit: 1, query: "second" }), {
         cards: [
           {
             collectorNumber: "2",
+            gridImageUrl: "https://cards.scryfall.io/normal/front/2.jpg",
             id: "printing-2",
+            imageUrl: "https://cards.scryfall.io/small/front/2.jpg",
             name: "Second Test Card",
             rarity: "common",
             setCode: "moo",
@@ -163,7 +255,9 @@ void test("a gzipped Scryfall JSONL archive becomes a validated local catalog", 
             cards: [
               {
                 collectorNumber: "2",
+                gridImageUrl: "https://cards.scryfall.io/normal/front/2.jpg",
                 id: "printing-2",
+                imageUrl: "https://cards.scryfall.io/small/front/2.jpg",
                 name: "Second Test Card",
                 rarity: "common",
                 setCode: "moo",
