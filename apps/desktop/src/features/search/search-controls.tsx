@@ -1,0 +1,256 @@
+import { Input } from "@base-ui/react/input";
+import { Switch } from "@base-ui/react/switch";
+import * as stylex from "@stylexjs/stylex";
+import { useEffect, useState } from "react";
+
+type SearchFormProps = {
+  activeQuery: string;
+  onSearch: (query: string) => void;
+};
+
+export function SearchForm({ activeQuery, onSearch }: SearchFormProps) {
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const nextQuery = query.trim();
+
+    if (nextQuery === activeQuery) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => onSearch(nextQuery), 160);
+    return () => window.clearTimeout(timeout);
+  }, [activeQuery, onSearch, query]);
+
+  return (
+    <form
+      {...stylex.props(styles.searchBar)}
+      role="search"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch(query.trim());
+      }}
+    >
+      <label {...stylex.props(styles.searchLabel)} htmlFor="card-search">
+        Filter the index
+      </label>
+      <Input
+        {...stylex.props(styles.searchInput)}
+        id="card-search"
+        name="query"
+        placeholder="Card, set, number, or type"
+        type="search"
+        value={query}
+        onValueChange={setQuery}
+      />
+    </form>
+  );
+}
+
+type SearchToggleProps = {
+  checked: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+};
+
+export function SearchToggle({ checked, label, onChange }: SearchToggleProps) {
+  return (
+    <Switch.Root
+      {...stylex.props(styles.filterToggle)}
+      checked={checked}
+      onCheckedChange={onChange}
+    >
+      <span
+        {...stylex.props(styles.toggleTrack, checked && styles.toggleTrackActive)}
+        aria-hidden="true"
+      >
+        <Switch.Thumb {...stylex.props(styles.toggleKnob, checked && styles.toggleKnobActive)} />
+      </span>
+      {label}
+    </Switch.Root>
+  );
+}
+
+type SearchViewToggleProps = {
+  grid: boolean;
+  onChange: (grid: boolean) => void;
+};
+
+export function SearchViewToggle({ grid, onChange }: SearchViewToggleProps) {
+  return (
+    <div {...stylex.props(styles.viewControl)}>
+      <span {...stylex.props(styles.viewLabel)}>View</span>
+      <div {...stylex.props(styles.viewToggle)} aria-label="Card view" role="group">
+        <button
+          {...stylex.props(styles.viewOption, !grid && styles.viewOptionActive)}
+          aria-label="List view"
+          aria-pressed={!grid}
+          title="List view"
+          type="button"
+          onClick={() => onChange(false)}
+        >
+          <svg {...stylex.props(styles.viewIcon)} aria-hidden="true" viewBox="0 0 16 16">
+            <path d="M2 3.5h2v2H2zM6 4h8v1H6zM2 7h2v2H2zM6 7.5h8v1H6zM2 10.5h2v2H2zM6 11h8v1H6z" />
+          </svg>
+        </button>
+        <button
+          {...stylex.props(styles.viewOption, grid && styles.viewOptionActive)}
+          aria-label="Grid view"
+          aria-pressed={grid}
+          title="Grid view"
+          type="button"
+          onClick={() => onChange(true)}
+        >
+          <svg {...stylex.props(styles.viewIcon)} aria-hidden="true" viewBox="0 0 16 16">
+            <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const styles = stylex.create({
+  searchBar: {
+    minHeight: "78px",
+    display: "grid",
+    gridTemplateColumns: {
+      default: "150px minmax(0, 1fr)",
+      "@media (max-width: 820px)": "1fr",
+    },
+    alignItems: "center",
+    columnGap: "18px",
+    borderBottom: "1px solid #bbb9af",
+  },
+  searchLabel: {
+    color: "#6f7169",
+    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
+    fontSize: "8px",
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    "@media (max-width: 820px)": {
+      display: "none",
+    },
+  },
+  searchInput: {
+    width: "100%",
+    minWidth: 0,
+    padding: "13px 0",
+    borderWidth: "0 0 1px",
+    borderStyle: "solid",
+    borderColor: "#9c9d94",
+    borderRadius: 0,
+    color: "#1b1d19",
+    backgroundColor: "transparent",
+    fontFamily: '"Iowan Old Style", "Baskerville", serif',
+    fontSize: "18px",
+    outline: "none",
+    "::placeholder": {
+      color: "#9b9c94",
+    },
+    ":focus": {
+      borderColor: "#1b1d19",
+    },
+  },
+  filterToggle: {
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    border: 0,
+    color: "#5f615a",
+    backgroundColor: "transparent",
+    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
+    fontSize: "8px",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    ":hover": {
+      color: "#1b1d19",
+    },
+    ":focus-visible": {
+      outline: "2px solid #1b1d19",
+      outlineOffset: "4px",
+    },
+  },
+  toggleTrack: {
+    width: "28px",
+    height: "16px",
+    padding: "2px",
+    display: "flex",
+    alignItems: "center",
+    border: "1px solid #96988f",
+    borderRadius: "999px",
+    backgroundColor: "#dedbd2",
+    transition: "background-color 160ms ease, border-color 160ms ease",
+  },
+  toggleTrackActive: {
+    borderColor: "#1b1d19",
+    backgroundColor: "#caff42",
+  },
+  toggleKnob: {
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    backgroundColor: "#777970",
+    transform: "translateX(0)",
+    transition: "background-color 160ms ease, transform 160ms ease",
+  },
+  toggleKnobActive: {
+    backgroundColor: "#1b1d19",
+    transform: "translateX(12px)",
+  },
+  viewControl: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  viewLabel: {
+    color: "#5f615a",
+    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
+    fontSize: "8px",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+  },
+  viewToggle: {
+    padding: "2px",
+    display: "flex",
+    gap: "2px",
+    border: "1px solid #96988f",
+    borderRadius: "3px",
+    backgroundColor: "#dedbd2",
+  },
+  viewOption: {
+    width: "27px",
+    height: "23px",
+    padding: "5px",
+    display: "grid",
+    placeItems: "center",
+    border: 0,
+    borderRadius: "2px",
+    color: "#73756d",
+    backgroundColor: "transparent",
+    cursor: "pointer",
+    transition: "color 140ms ease, background-color 140ms ease",
+    ":hover": {
+      color: "#1b1d19",
+    },
+    ":focus-visible": {
+      outline: "2px solid #1b1d19",
+      outlineOffset: "3px",
+    },
+  },
+  viewOptionActive: {
+    color: "#f4f1e8",
+    backgroundColor: "#1b1d19",
+    ":hover": {
+      color: "#f4f1e8",
+    },
+  },
+  viewIcon: {
+    width: "13px",
+    height: "13px",
+    fill: "currentColor",
+  },
+});
