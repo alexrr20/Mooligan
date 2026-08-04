@@ -1,124 +1,50 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 
-export function useCatalogSearch() {
-  const [cards, setCards] = useState<CatalogCardSummary[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [activeQuery, setActiveQuery] = useState("");
-  const [hideArtSeries, setHideArtSeries] = useState(false);
-  const [uniqueCards, setUniqueCards] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const initialLoadStarted = useRef(false);
-  const requestId = useRef(0);
-
-  const load = useCallback(
-    async (nextQuery: string, nextUniqueCards: boolean, nextHideArtSeries: boolean, offset = 0) => {
-      const query = nextQuery.trim();
-      const catalog = window.catalog;
-      const id = ++requestId.current;
-
+export function useCatalogSearch(query: string, uniqueCards: boolean, hideArtSeries: boolean) {
+  const catalog = window.catalog;
+  const result = useInfiniteQuery({
+    queryKey: ["catalog", "cards", { hideArtSeries, query, uniqueCards }],
+    queryFn: ({ pageParam }) => {
       if (!catalog) {
-        setError("Catalog browsing is available in the desktop app.");
-        setLoading(false);
-        return;
+        throw new Error("Catalog browsing is available in the desktop app.");
       }
 
-      setLoading(true);
-      setError("");
-
-      if (offset === 0) {
-        setActiveQuery(query);
-        setHasMore(false);
-        setTotal(null);
-      }
-
-      try {
-        const page = await catalog.list({
-          hideArtSeries: nextHideArtSeries,
-          limit: 100,
-          offset,
-          query,
-          uniqueCards: nextUniqueCards,
-        });
-
-        if (id !== requestId.current) {
-          return;
-        }
-
-        setCards((current) => (offset === 0 ? page.cards : [...current, ...page.cards]));
-        setHasMore(page.hasMore);
-        setTotal(page.total);
-      } catch {
-        if (id !== requestId.current) {
-          return;
-        }
-
-        setCards([]);
-        setHasMore(false);
-        setTotal(0);
-        setError("The local card index could not be read.");
-      } finally {
-        if (id === requestId.current) {
-          setLoading(false);
-        }
-      }
+      return catalog.list({
+        hideArtSeries,
+        limit: 100,
+        offset: pageParam,
+        query,
+        uniqueCards,
+      });
     },
-    [],
-  );
+    enabled: Boolean(catalog),
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.hasMore ? pages.reduce((count, page) => count + page.cards.length, 0) : undefined,
+    initialPageParam: 0,
+    placeholderData: keepPreviousData,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const pages = result.data?.pages ?? [];
+  const cards = pages.flatMap((page) => page.cards);
+  const lastPage = pages.at(-1);
 
-  useEffect(() => {
-    if (!initialLoadStarted.current) {
-      initialLoadStarted.current = true;
-      void load("", false, false);
+  const loadMore = () => {
+    if (result.hasNextPage && !result.isFetching) {
+      void result.fetchNextPage();
     }
-  }, [load]);
-
-  useEffect(() => {
-    const refresh = () => void load(activeQuery, uniqueCards, hideArtSeries);
-
-    window.addEventListener("catalogready", refresh);
-    return () => window.removeEventListener("catalogready", refresh);
-  }, [activeQuery, hideArtSeries, load, uniqueCards]);
-
-  const search = useCallback(
-    (query: string) => void load(query, uniqueCards, hideArtSeries),
-    [hideArtSeries, load, uniqueCards],
-  );
-
-  const changeUniqueCards = useCallback(
-    (nextUniqueCards: boolean) => {
-      setUniqueCards(nextUniqueCards);
-      void load(activeQuery, nextUniqueCards, hideArtSeries);
-    },
-    [activeQuery, hideArtSeries, load],
-  );
-
-  const changeHideArtSeries = useCallback(
-    (nextHideArtSeries: boolean) => {
-      setHideArtSeries(nextHideArtSeries);
-      void load(activeQuery, uniqueCards, nextHideArtSeries);
-    },
-    [activeQuery, load, uniqueCards],
-  );
-
-  const loadMore = useCallback(
-    () => void load(activeQuery, uniqueCards, hideArtSeries, cards.length),
-    [activeQuery, cards.length, hideArtSeries, load, uniqueCards],
-  );
+  };
 
   return {
-    activeQuery,
     cards,
-    changeHideArtSeries,
-    changeUniqueCards,
-    error,
-    hasMore,
-    hideArtSeries,
-    loading,
+    error: !catalog
+      ? "Catalog browsing is available in the desktop app."
+      : result.isError
+        ? "The local card index could not be read."
+        : "",
+    hasMore: !result.isPlaceholderData && Boolean(result.hasNextPage),
+    loading: result.isFetching,
     loadMore,
-    search,
-    total,
-    uniqueCards,
+    total: result.isPlaceholderData ? null : (lastPage?.total ?? null),
   };
 }

@@ -1,32 +1,43 @@
 import * as stylex from "@stylexjs/stylex";
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 
 import { Page } from "../components/page";
 import { SearchForm, SearchToggle, SearchViewToggle } from "../features/search/search-controls";
 import { SearchResults } from "../features/search/search-results";
+import { type CatalogSearchState, validateCatalogSearch } from "../features/search/search-state";
 import { useCatalogSearch } from "../features/search/use-catalog-search";
 
 export const Route = createFileRoute("/search")({
   component: SearchPage,
+  validateSearch: validateCatalogSearch,
 });
 
 function SearchPage() {
-  const [gridView, setGridView] = useState(false);
-  const {
+  const searchState = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const activeQuery = searchState.query ?? "";
+  const gridView = searchState.grid === true;
+  const hideArtSeries = searchState.hideArtSeries === true;
+  const uniqueCards = searchState.uniqueCards === true;
+  const { cards, error, hasMore, loading, loadMore, total } = useCatalogSearch(
     activeQuery,
-    cards,
-    changeHideArtSeries,
-    changeUniqueCards,
-    error,
-    hasMore,
-    hideArtSeries,
-    loading,
-    loadMore,
-    search,
-    total,
     uniqueCards,
-  } = useCatalogSearch();
+    hideArtSeries,
+  );
+  const updateSearch = useCallback(
+    (update: CatalogSearchState) => {
+      void navigate({
+        replace: true,
+        search: (current) => ({ ...current, ...update }),
+      });
+    },
+    [navigate],
+  );
+  const search = useCallback(
+    (query: string) => updateSearch({ query: query || undefined }),
+    [updateSearch],
+  );
 
   return (
     <Page
@@ -46,14 +57,17 @@ function SearchPage() {
             <SearchToggle
               checked={uniqueCards}
               label="One print per card"
-              onChange={changeUniqueCards}
+              onChange={(checked) => updateSearch({ uniqueCards: checked || undefined })}
             />
             <SearchToggle
               checked={hideArtSeries}
               label="Hide art series"
-              onChange={changeHideArtSeries}
+              onChange={(checked) => updateSearch({ hideArtSeries: checked || undefined })}
             />
-            <SearchViewToggle grid={gridView} onChange={setGridView} />
+            <SearchViewToggle
+              grid={gridView}
+              onChange={(grid) => updateSearch({ grid: grid || undefined })}
+            />
             <span {...stylex.props(styles.count)} aria-live="polite">
               {loading && cards.length === 0
                 ? activeQuery

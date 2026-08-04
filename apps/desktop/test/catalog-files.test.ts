@@ -11,6 +11,24 @@ import { gzipSync } from "node:zlib";
 import { recoverInterruptedReplacement } from "../electron/catalog-files.ts";
 import { importCatalog, readGzipJsonLines } from "../electron/catalog-import.ts";
 import { createCatalogQuery, type CatalogQueryWorkerResponse } from "../electron/catalog-query.ts";
+import { validateCatalogSearch } from "../src/features/search/search-state.ts";
+
+void test("catalog search state keeps only valid non-default values", () => {
+  assert.deepEqual(
+    validateCatalogSearch({
+      grid: true,
+      hideArtSeries: false,
+      query: `  Mooligan ${"x".repeat(120)}  `,
+      uniqueCards: true,
+    }),
+    {
+      grid: true,
+      query: `Mooligan ${"x".repeat(91)}`,
+      uniqueCards: true,
+    },
+  );
+  assert.deepEqual(validateCatalogSearch({ grid: "true", query: "   ", uniqueCards: 1 }), {});
+});
 
 void test("an interrupted catalog replacement restores the previous catalog", async () => {
   const directory = await mkdtemp(join(tmpdir(), "mooligan-catalog-"));

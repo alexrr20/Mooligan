@@ -1,5 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createHashHistory, createRouter, RouterProvider } from "@tanstack/react-router";
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 import "./global.css";
@@ -9,6 +10,7 @@ const router = createRouter({
   routeTree,
   history: createHashHistory(),
 });
+const queryClient = new QueryClient();
 
 declare module "@tanstack/react-router" {
   interface Register {
@@ -24,6 +26,23 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <App />
   </StrictMode>,
 );
+
+function App() {
+  useEffect(() => {
+    const refreshCatalog = () => {
+      void queryClient.invalidateQueries({ queryKey: ["catalog"] });
+    };
+
+    window.addEventListener("catalogready", refreshCatalog);
+    return () => window.removeEventListener("catalogready", refreshCatalog);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  );
+}
