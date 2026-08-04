@@ -174,10 +174,15 @@ const styles = stylex.create({
     alignItems: "start",
     alignContent: "start",
     borderBottom: 0,
+    transition: "transform 160ms cubic-bezier(0.23, 1, 0.32, 1)",
     ":hover": {
       paddingInline: 0,
       backgroundColor: "transparent",
-      transform: "translateY(-4px)",
+    },
+    "@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)": {
+      ":hover": {
+        transform: "translateY(-4px)",
+      },
     },
   },
   tileNumber: {
