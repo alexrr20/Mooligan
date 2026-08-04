@@ -9,7 +9,9 @@ type SearchFormProps = {
 };
 
 export function SearchForm({ activeQuery, onSearch }: SearchFormProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(activeQuery);
+
+  useEffect(() => setQuery(activeQuery), [activeQuery]);
 
   useEffect(() => {
     const nextQuery = query.trim();
