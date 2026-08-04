@@ -80,7 +80,7 @@ function SearchPage() {
 
 const styles = stylex.create({
   catalog: {
-    borderTop: "1px solid #1b1d19",
+    borderTop: "1px solid #55584f",
   },
   indexMeta: {
     minHeight: "66px",
@@ -90,7 +90,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: "24px",
-    borderBottom: "1px solid #d0cdc3",
+    borderBottom: "1px solid #34362f",
   },
   indexActions: {
     display: "flex",
@@ -104,14 +104,14 @@ const styles = stylex.create({
   },
   indexTitle: {
     margin: 0,
-    color: "#252720",
+    color: "#f4f1e8",
     fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: "20px",
     fontWeight: 400,
     letterSpacing: "-0.02em",
   },
   count: {
-    color: "#73756d",
+    color: "#8f9287",
     fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.11em",

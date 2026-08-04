@@ -92,7 +92,7 @@ const styles = stylex.create({
     },
     gridTemplateRows: "52px minmax(0, 1fr)",
     overflow: "hidden",
-    backgroundColor: "#1b1d19",
+    backgroundColor: "#0a0a0a",
   },
   chrome: {
     gridColumn: "1 / -1",
@@ -106,7 +106,7 @@ const styles = stylex.create({
     paddingInline: "22px",
     borderBottom: "1px solid #34362f",
     color: "#f4f1e8",
-    backgroundColor: "#1b1d19",
+    backgroundColor: "#0a0a0a",
   },
   wordmark: {
     paddingLeft: {
@@ -129,7 +129,7 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   windowMeta: {
-    color: "#73766b",
+    color: "#85887e",
     fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.12em",
@@ -144,11 +144,11 @@ const styles = stylex.create({
     justifyContent: "space-between",
     borderRight: "1px solid #34362f",
     color: "#d9d9cf",
-    backgroundColor: "#1b1d19",
+    backgroundColor: "#0a0a0a",
   },
   sectionLabel: {
     margin: "0 12px 18px",
-    color: "#70736a",
+    color: "#85887e",
     fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.16em",
@@ -206,7 +206,7 @@ const styles = stylex.create({
   },
   localCopy: {
     margin: 0,
-    color: "#70736a",
+    color: "#85887e",
     fontSize: "9px",
     lineHeight: 1.5,
   },
@@ -214,8 +214,7 @@ const styles = stylex.create({
     minWidth: 0,
     minHeight: 0,
     overflowY: "auto",
-    backgroundColor: "#f1efe8",
-    backgroundImage: "radial-gradient(circle at 88% 4%, rgba(255, 255, 255, 0.9), transparent 30%)",
+    backgroundColor: "#0a0a0a",
   },
   route: {
     minHeight: "100%",
