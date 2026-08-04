@@ -119,14 +119,12 @@ const styles = stylex.create({
   indexTitle: {
     margin: 0,
     color: "#f4f1e8",
-    fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: "20px",
     fontWeight: 400,
     letterSpacing: "-0.02em",
   },
   count: {
     color: "#8f9287",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.11em",
     textTransform: "uppercase",

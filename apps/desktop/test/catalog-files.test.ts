@@ -10,7 +10,11 @@ import { gzipSync } from "node:zlib";
 
 import { recoverInterruptedReplacement } from "../electron/catalog-files.ts";
 import { importCatalog, readGzipJsonLines } from "../electron/catalog-import.ts";
-import { createCatalogQuery, type CatalogQueryWorkerResponse } from "../electron/catalog-query.ts";
+import {
+  createCatalogQuery,
+  type CatalogQueryWorkerResponse,
+  validateCatalogListRequest,
+} from "../electron/catalog-query.ts";
 import { validateCatalogSearch } from "../src/features/search/search-state.ts";
 
 void test("catalog search state keeps only valid non-default values", () => {
@@ -28,6 +32,18 @@ void test("catalog search state keeps only valid non-default values", () => {
     },
   );
   assert.deepEqual(validateCatalogSearch({ grid: "true", query: "   ", uniqueCards: 1 }), {});
+});
+
+void test("catalog IPC input accepts only the narrow list request", () => {
+  assert.deepEqual(validateCatalogListRequest(undefined), {});
+  assert.deepEqual(validateCatalogListRequest({ limit: 100, offset: 0, query: "mox" }), {
+    limit: 100,
+    offset: 0,
+    query: "mox",
+  });
+  assert.throws(() => validateCatalogListRequest({ query: { value: "mox" } }));
+  assert.throws(() => validateCatalogListRequest({ limit: 251 }));
+  assert.throws(() => validateCatalogListRequest({ extra: true }));
 });
 
 void test("an interrupted catalog replacement restores the previous catalog", async () => {

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Sign in to Mooligan</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main>
+      <p class="wordmark">Mooligan</p>
+      <section class="card" aria-labelledby="title">
+        <p class="eyebrow">Optional account / Secure browser sign-in</p>
+        <h1 id="title">Bring this workspace with you.</h1>
+        <p class="intro">
+          Sign in to add online identity and future sync. Your cards and local workspace remain
+          available without an account.
+        </p>
+
+        <div class="action" id="signed-out">
+          <button id="sign-in" type="button">
+            <span>Continue with Google</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+
+        <div class="action" id="signed-in" hidden>
+          <p class="identity" id="identity"></p>
+          <button id="continue" type="button">
+            <span>Continue to Mooligan</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+
+        <div class="manual" id="manual" hidden>
+          <p class="manual-title">Mooligan did not open?</p>
+          <p>Copy this one-time code and paste it into the desktop app.</p>
+          <button class="code" id="copy-code" type="button">
+            <code id="authorization-code"></code>
+            <span id="copy-label">Copy</span>
+          </button>
+        </div>
+
+        <p class="error" id="error" role="alert" hidden></p>
+        <p class="footnote">
+          The browser handles identity. Credentials never enter the card window.
+        </p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

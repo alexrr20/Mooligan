@@ -80,7 +80,6 @@ const styles = stylex.create({
     },
   },
   cardMeta: {
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.12em",
     opacity: 0.66,
@@ -88,7 +87,6 @@ const styles = stylex.create({
   },
   cardTitle: {
     maxWidth: "180px",
-    fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: {
       default: "23px",
       "@media (max-width: 820px)": "20px",

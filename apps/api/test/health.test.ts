@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vite-plus/test";
+// oxlint-disable-next-line vite-plus/prefer-vite-plus-imports -- Cloudflare's pool must share Vitest's runner instance.
+import { test, vi } from "vitest";
 
 import { refreshCatalogRelease } from "../src/catalog-release.ts";
 import { api } from "../src/index.ts";

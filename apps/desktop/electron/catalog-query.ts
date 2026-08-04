@@ -137,7 +137,8 @@ export function createCatalogQuery(database: DatabaseSync) {
      WHERE ${artSeriesFilter}`,
   );
 
-  return (request: CatalogListRequest = {}): CatalogListPage => {
+  return (input: CatalogListRequest = {}): CatalogListPage => {
+    const request = validateCatalogListRequest(input);
     const limit =
       Number.isSafeInteger(request.limit) && request.limit! > 0
         ? Math.min(request.limit!, 250)
@@ -183,6 +184,37 @@ export function createCatalogQuery(database: DatabaseSync) {
   };
 }
 
+export function validateCatalogListRequest(value: unknown): CatalogListRequest {
+  if (value === undefined) {
+    return {};
+  }
+  if (
+    !isRecord(value) ||
+    Object.keys(value).some(
+      (key) => !["hideArtSeries", "limit", "offset", "query", "uniqueCards"].includes(key),
+    ) ||
+    (Object.hasOwn(value, "hideArtSeries") && typeof value.hideArtSeries !== "boolean") ||
+    (Object.hasOwn(value, "uniqueCards") && typeof value.uniqueCards !== "boolean") ||
+    (Object.hasOwn(value, "query") &&
+      (typeof value.query !== "string" || value.query.length > 500)) ||
+    (Object.hasOwn(value, "limit") &&
+      (typeof value.limit !== "number" ||
+        !Number.isSafeInteger(value.limit) ||
+        value.limit < 1 ||
+        value.limit > 250)) ||
+    (Object.hasOwn(value, "offset") &&
+      (typeof value.offset !== "number" || !Number.isSafeInteger(value.offset) || value.offset < 0))
+  ) {
+    throw new TypeError("Invalid catalog list request.");
+  }
+
+  return { ...value };
+}
+
 function toFtsQuery(query: string) {
   return (query.match(/[\p{L}\p{N}]+/gu) ?? []).map((term) => `"${term}"*`).join(" AND ");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
