@@ -282,7 +282,6 @@ const styles = stylex.create({
     gap: "24px",
     borderBottom: "1px solid #34362f",
     color: "#8f9287",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.13em",
     textTransform: "uppercase",
@@ -310,12 +309,10 @@ const styles = stylex.create({
     transform: "rotate(-2.5deg)",
   },
   markNumber: {
-    fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: "42px",
     lineHeight: 0.8,
   },
   markLabel: {
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.14em",
     textTransform: "uppercase",
@@ -326,7 +323,6 @@ const styles = stylex.create({
   eyebrow: {
     margin: "0 0 15px",
     color: "#a6a89d",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.15em",
     textTransform: "uppercase",
@@ -334,7 +330,6 @@ const styles = stylex.create({
   title: {
     margin: 0,
     color: "#f4f1e8",
-    fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: "clamp(34px, 5vw, 49px)",
     fontWeight: 400,
     letterSpacing: "-0.045em",
@@ -365,7 +360,6 @@ const styles = stylex.create({
     justifyContent: "space-between",
     gap: "20px",
     color: "#a6a89d",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.08em",
     textTransform: "uppercase",
@@ -444,7 +438,6 @@ const styles = stylex.create({
     paddingTop: "15px",
     borderTop: "1px solid #34362f",
     color: "#85887e",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "7px",
     letterSpacing: "0.08em",
     textTransform: "uppercase",

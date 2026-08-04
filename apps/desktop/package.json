@@ -2,32 +2,35 @@
   "name": "desktop",
   "version": "0.0.0",
   "private": true,
+  "description": "A local-first Magic: The Gathering workspace",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vp dev",
     "build": "tsc --noEmit && vp build",
+    "package": "vp run build && electron-builder --dir",
+    "dist": "vp run build && electron-builder",
     "start": "electron .",
-    "test": "node --test test/catalog-files.test.ts"
+    "test": "node --test test/*.test.ts"
   },
-  "dependencies": {
+  "devDependencies": {
     "@base-ui/react": "catalog:",
     "@mooligan/domain": "workspace:*",
     "@stylexjs/stylex": "catalog:",
+    "@stylexjs/unplugin": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
-    "motion": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:"
-  },
-  "devDependencies": {
-    "@stylexjs/unplugin": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "better-auth": "catalog:",
     "electron": "catalog:",
+    "electron-builder": "catalog:",
+    "motion": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "unplugin": "catalog:",
     "vite": "catalog:",

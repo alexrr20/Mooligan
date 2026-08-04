@@ -1,10 +1,30 @@
 import { Hono } from "hono";
 
+import { createAuth } from "./auth.js";
 import { readCatalogRelease, refreshCatalogRelease } from "./catalog-release.js";
+import { syncApi } from "./sync.js";
 
 const api = new Hono<{ Bindings: Env }>();
 
+api.on(["GET", "POST"], "/api/auth/*", (context) => {
+  return createAuth(context.env).handler(context.req.raw);
+});
+
 api.get("/health", (context) => context.json({ status: "ok" as const }));
+
+api.get("/me", async (context) => {
+  const session = await createAuth(context.env).api.getSession({
+    headers: context.req.raw.headers,
+  });
+
+  if (!session) {
+    return context.json({ error: "unauthorized" as const }, 401);
+  }
+
+  return context.json({ user: session.user });
+});
+
+api.route("/sync", syncApi);
 
 api.get("/catalog/release", async (context) => {
   let release = await readCatalogRelease(context.env.DB);

@@ -126,7 +126,6 @@ const styles = stylex.create({
   },
   searchLabel: {
     color: "#a6a89d",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.14em",
     textTransform: "uppercase",
@@ -144,7 +143,6 @@ const styles = stylex.create({
     borderRadius: 0,
     color: "#f4f1e8",
     backgroundColor: "transparent",
-    fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: "18px",
     outline: "none",
     "::placeholder": {
@@ -162,7 +160,6 @@ const styles = stylex.create({
     border: 0,
     color: "#a6a89d",
     backgroundColor: "transparent",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.08em",
     textTransform: "uppercase",
@@ -210,7 +207,6 @@ const styles = stylex.create({
   },
   viewLabel: {
     color: "#a6a89d",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.08em",
     textTransform: "uppercase",

@@ -1,0 +1,21 @@
+appId: com.mooligan.app
+productName: Mooligan
+asar: true
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+protocols:
+  - name: Mooligan authentication callback
+    role: Viewer
+    schemes:
+      - com.mooligan.app
+mac:
+  category: public.app-category.lifestyle
+linux:
+  category: Utility
+  desktop:
+    entry:
+      MimeType: x-scheme-handler/com.mooligan.app;

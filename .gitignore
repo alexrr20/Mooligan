@@ -13,13 +13,19 @@ node_modules
 dist
 dist-ssr
 dist-electron
+auth-dist
+release
 *.tsbuildinfo
 *.local
+
+# Local licensed assets
+/apps/desktop/src/assets/Frama/
 
 # dotenv environment variable files
 .env
 .env.*
 !.env.example
+.dev.vars
 
 # Editor directories and files
 .vscode/*

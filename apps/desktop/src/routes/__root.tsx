@@ -3,6 +3,7 @@ import { createRootRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { motion, MotionConfig } from "motion/react";
 
 import { CatalogSetup } from "../components/catalog-setup";
+import { usePreferences } from "../features/preferences/use-preferences";
 
 export const Route = createRootRoute({
   component: AppShell,
@@ -22,9 +23,15 @@ function AppShell() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const { preferences } = usePreferences();
+  const reducedMotion = {
+    full: "never",
+    reduced: "always",
+    system: "user",
+  }[preferences.motion] as "always" | "never" | "user";
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion={reducedMotion}>
       <div {...stylex.props(styles.app)}>
         <header {...stylex.props(styles.chrome)} data-window-drag-region>
           <span {...stylex.props(styles.wordmark)}>Mooligan</span>
@@ -113,14 +120,12 @@ const styles = stylex.create({
       default: "64px",
       "@media (max-width: 820px)": "52px",
     },
-    fontFamily: '"Iowan Old Style", "Baskerville", serif',
     fontSize: "17px",
     letterSpacing: "-0.01em",
   },
   windowTitle: {
     overflow: "hidden",
     color: "#a6a89d",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "9px",
     letterSpacing: "0.15em",
     textAlign: "center",
@@ -130,7 +135,6 @@ const styles = stylex.create({
   },
   windowMeta: {
     color: "#85887e",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.12em",
     textAlign: "right",
@@ -149,7 +153,6 @@ const styles = stylex.create({
   sectionLabel: {
     margin: "0 12px 18px",
     color: "#85887e",
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     letterSpacing: "0.16em",
     textTransform: "uppercase",
@@ -180,7 +183,6 @@ const styles = stylex.create({
     },
   },
   navNumber: {
-    fontFamily: '"SFMono-Regular", "Cascadia Mono", monospace',
     fontSize: "8px",
     opacity: 0.62,
   },

@@ -1,12 +1,40 @@
+import { createHash } from "node:crypto";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, session } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  protocol,
+  safeStorage,
+  session,
+  shell,
+} from "electron";
 
+import {
+  AuthInputError,
+  type AuthSnapshot,
+  DEFAULT_AUTH_ORIGIN,
+  DesktopAuth,
+  resolveAuthOrigin,
+} from "./auth";
+import { registerAuthColdStart, registerAuthScheme } from "./auth-startup";
 import { registerCatalogIpc } from "./catalog";
+import { assertTrustedSender, developmentRendererUrl } from "./ipc-security";
+import { PreferenceSyncCoordinator, type PreferenceSyncSnapshot } from "./preference-sync";
+import { validatePreferencesUpdate } from "./preferences";
+import { parseWorkspaceBackup } from "./workspace-backup";
+import { WorkspaceManager } from "./workspace-store";
 
 app.enableSandbox();
+registerAuthScheme(protocol);
+const authStartup = registerAuthColdStart(app);
 registerCatalogIpc();
+
+const MAX_WORKSPACE_BACKUP_BYTES = 50 * 1024 * 1024;
 
 async function createWindow() {
   const window = new BrowserWindow({
@@ -35,36 +63,323 @@ async function createWindow() {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.once("ready-to-show", () => window.show());
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    await window.loadURL(process.env.VITE_DEV_SERVER_URL);
+  const developmentUrl = developmentRendererUrl();
+  if (developmentUrl) {
+    await window.loadURL(developmentUrl.href);
   } else {
     await window.loadFile(join(app.getAppPath(), "dist/index.html"));
   }
 }
 
-void app
-  .whenReady()
-  .then(async () => {
-    session.defaultSession.setPermissionCheckHandler(() => false);
-    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-      callback(false);
-    });
+if (!authStartup.isPrimary) {
+  app.quit();
+} else {
+  void app
+    .whenReady()
+    .then(async () => {
+      const workspace = new WorkspaceManager(app.getPath("userData"));
+      const configuredAuthOrigin = process.env.MOOLIGAN_AUTH_ORIGIN;
+      let authConfigured = !app.isPackaged || Boolean(configuredAuthOrigin);
+      let authConfigurationError: string | null = authConfigured
+        ? null
+        : "Account sign-in is not configured for this build.";
+      let authOrigin = resolveAuthOrigin(DEFAULT_AUTH_ORIGIN);
 
-    await createWindow();
-
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow();
+      if (configuredAuthOrigin) {
+        try {
+          authOrigin = resolveAuthOrigin(configuredAuthOrigin);
+        } catch {
+          authConfigured = false;
+          authConfigurationError =
+            "The configured authentication origin is invalid. Account features are disabled.";
+        }
       }
+
+      const auth = new DesktopAuth({
+        filePath: join(
+          app.getPath("userData"),
+          `auth-state-${createHash("sha256").update(authOrigin).digest("hex")}`,
+        ),
+        openExternal: (url) => shell.openExternal(url),
+        origin: authOrigin,
+        safeStorage,
+        ...(authConfigured
+          ? {}
+          : {
+              fetch: async () => new Response(null, { status: 503 }),
+            }),
+      });
+      const preferenceSync = new PreferenceSyncCoordinator(auth, workspace);
+
+      let lastAuthError = authConfigurationError;
+
+      async function applyAuthSnapshot(snapshot: AuthSnapshot) {
+        lastAuthError = authConfigurationError;
+        publish("auth:changed", snapshot);
+        const previousPreferences = workspace.readPreferences();
+        const previousWorkspaceId = workspace.workspaceId;
+        let syncSnapshot: PreferenceSyncSnapshot;
+
+        if (snapshot.status === "signed-in" && snapshot.user) {
+          syncSnapshot = await preferenceSync.connect(snapshot.user.id);
+        } else if (snapshot.status === "sync-paused") {
+          syncSnapshot = preferenceSync.pause();
+        } else {
+          syncSnapshot = await preferenceSync.disconnect();
+        }
+
+        const currentPreferences = workspace.readPreferences();
+        if (
+          workspace.workspaceId !== previousWorkspaceId ||
+          currentPreferences.motion !== previousPreferences.motion
+        ) {
+          publish("preferences:changed", currentPreferences);
+        }
+
+        const currentAuth = auth.snapshot();
+        publish("auth:changed", currentAuth);
+        publish("sync:changed", syncSnapshot);
+        return currentAuth;
+      }
+
+      async function runAuth(operation: () => Promise<AuthSnapshot>) {
+        try {
+          return await applyAuthSnapshot(await operation());
+        } catch (error) {
+          await applyAuthSnapshot(auth.snapshot());
+          throw new Error(publicAuthError(error));
+        }
+      }
+
+      function queuePreferenceSync() {
+        const operation = preferenceSync.preferenceChanged();
+        publish("sync:changed", preferenceSync.snapshot());
+        void operation
+          .then((snapshot) => {
+            publish("auth:changed", auth.snapshot());
+            publish("sync:changed", snapshot);
+          })
+          .catch(() => {
+            process.stderr.write("Preference synchronization failed.\n");
+          });
+      }
+
+      void auth
+        .initialize()
+        .then(applyAuthSnapshot)
+        .catch((error: unknown) => {
+          lastAuthError = publicAuthError(error);
+          publish("auth:error", lastAuthError);
+        });
+
+      ipcMain.handle("auth:read", (event) => {
+        assertTrustedSender(event);
+        return auth.snapshot();
+      });
+      ipcMain.handle("auth:sign-in", (event) => {
+        assertTrustedSender(event);
+        if (!authConfigured) {
+          throw new Error("Account sign-in is not configured for this build.");
+        }
+        return runAuth(() => auth.beginSignIn());
+      });
+      ipcMain.handle("auth:complete", (event, code: unknown) => {
+        assertTrustedSender(event);
+        if (!authConfigured) {
+          throw new Error("Account sign-in is not configured for this build.");
+        }
+        if (typeof code !== "string" || code.length > 512) {
+          throw new AuthInputError("The authorization code is invalid.");
+        }
+        return runAuth(() => auth.completeManualCode(code));
+      });
+      ipcMain.handle("auth:refresh", (event) => {
+        assertTrustedSender(event);
+        return runAuth(() => auth.refresh());
+      });
+      ipcMain.handle("auth:sign-out", (event) => {
+        assertTrustedSender(event);
+        return runAuth(() => auth.signOut());
+      });
+      ipcMain.handle("sync:read", (event) => {
+        assertTrustedSender(event);
+        return preferenceSync.snapshot();
+      });
+      ipcMain.handle("sync:retry", async (event) => {
+        assertTrustedSender(event);
+        const snapshot = await preferenceSync.sync();
+        publish("preferences:changed", workspace.readPreferences());
+        publish("auth:changed", auth.snapshot());
+        publish("sync:changed", snapshot);
+        return snapshot;
+      });
+
+      ipcMain.handle("preferences:read", (event) => {
+        assertTrustedSender(event);
+        return workspace.readPreferences();
+      });
+      ipcMain.handle("preferences:update", (event, update: unknown) => {
+        assertTrustedSender(event);
+        const preferences = workspace.updatePreferences(validatePreferencesUpdate(update));
+        publish("preferences:changed", preferences);
+        queuePreferenceSync();
+        return preferences;
+      });
+
+      ipcMain.handle("workspace:export", async (event) => {
+        assertTrustedSender(event);
+        const owner = BrowserWindow.fromWebContents(event.sender);
+        const options = {
+          defaultPath: join(
+            app.getPath("documents"),
+            `mooligan-workspace-${new Date().toISOString().slice(0, 10)}.json`,
+          ),
+          filters: [{ extensions: ["json"], name: "Mooligan workspace" }],
+          title: "Export Mooligan workspace",
+        };
+        const result = owner
+          ? await dialog.showSaveDialog(owner, options)
+          : await dialog.showSaveDialog(options);
+
+        if (result.canceled || !result.filePath) {
+          return "cancelled" as const;
+        }
+
+        try {
+          await writeFile(result.filePath, workspace.createBackup(), "utf8");
+          return "exported" as const;
+        } catch {
+          throw new Error("The workspace backup could not be exported.");
+        }
+      });
+
+      ipcMain.handle("workspace:import", async (event) => {
+        assertTrustedSender(event);
+        const owner = BrowserWindow.fromWebContents(event.sender);
+        const options = {
+          filters: [{ extensions: ["json"], name: "Mooligan workspace" }],
+          properties: ["openFile"] as "openFile"[],
+          title: "Import Mooligan workspace",
+        };
+        const result = owner
+          ? await dialog.showOpenDialog(owner, options)
+          : await dialog.showOpenDialog(options);
+
+        if (result.canceled || !result.filePaths[0]) {
+          return "cancelled" as const;
+        }
+
+        let backup: string;
+        try {
+          const info = await stat(result.filePaths[0]);
+          if (!info.isFile() || info.size > MAX_WORKSPACE_BACKUP_BYTES) {
+            throw new Error("invalid backup");
+          }
+          backup = await readFile(result.filePaths[0], "utf8");
+          parseWorkspaceBackup(backup);
+        } catch {
+          throw new Error("The selected file is not a valid Mooligan workspace backup.");
+        }
+
+        const confirmationOptions = {
+          buttons: ["Cancel", "Replace local workspace"],
+          cancelId: 0,
+          defaultId: 0,
+          detail:
+            "Preferences, collection lots, decks, and lists in this workspace will be replaced. Your local workspace and account binding will stay the same.",
+          message: "Import this backup?",
+          noLink: true,
+          type: "warning" as const,
+        };
+        const confirmation = owner
+          ? await dialog.showMessageBox(owner, confirmationOptions)
+          : await dialog.showMessageBox(confirmationOptions);
+
+        if (confirmation.response !== 1) {
+          return "cancelled" as const;
+        }
+
+        workspace.importBackup(backup);
+        publish("preferences:changed", workspace.readPreferences());
+        queuePreferenceSync();
+        return "imported" as const;
+      });
+
+      void authStartup.start(
+        async (url) => {
+          if (!authConfigured) {
+            throw new Error("Account sign-in is not configured for this build.");
+          }
+          await runAuth(() => auth.handleCallback(url));
+          focusWindow();
+        },
+        (error) => {
+          lastAuthError = publicAuthError(error);
+          publish("auth:error", lastAuthError);
+        },
+      );
+
+      app.once("will-quit", () => workspace.close());
+
+      session.defaultSession.setPermissionCheckHandler(() => false);
+      session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+        callback(false);
+      });
+
+      await createWindow();
+      publish("auth:changed", auth.snapshot());
+      publish("sync:changed", preferenceSync.snapshot());
+      if (lastAuthError) {
+        publish("auth:error", lastAuthError);
+      }
+
+      app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          void createWindow();
+        }
+      });
+      app.on("second-instance", focusWindow);
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(`Failed to create desktop window: ${String(error)}\n`);
+      app.quit();
     });
-  })
-  .catch((error: unknown) => {
-    process.stderr.write(`Failed to create desktop window: ${String(error)}\n`);
-    app.quit();
-  });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
 });
+
+function publish(channel: string, value: unknown) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(channel, value);
+    }
+  }
+}
+
+function focusWindow() {
+  const window = BrowserWindow.getAllWindows()[0];
+
+  if (!window) {
+    return;
+  }
+  if (window.isMinimized()) {
+    window.restore();
+  }
+  window.show();
+  window.focus();
+}
+
+function publicAuthError(error: unknown) {
+  if (
+    error instanceof Error &&
+    ["AuthInputError", "AuthRequestError", "ProtectedStorageError"].includes(error.name)
+  ) {
+    return error.message;
+  }
+
+  return "Account sign-in could not be completed. Return to Settings and try again.";
+}

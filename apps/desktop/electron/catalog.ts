@@ -10,12 +10,14 @@ import { app, ipcMain, net, type IpcMainInvokeEvent } from "electron";
 
 import { recoverInterruptedReplacement } from "./catalog-files";
 import { catalogSchemaVersion, importCatalog, readGzipJsonLines } from "./catalog-import";
+import { validateCatalogListRequest } from "./catalog-query";
 import type {
   CatalogListPage,
   CatalogListRequest,
   CatalogQueryWorkerRequest,
   CatalogQueryWorkerResponse,
 } from "./catalog-query";
+import { assertTrustedSender } from "./ipc-security";
 
 export type CatalogProgress = {
   completedBytes: number;
@@ -38,12 +40,17 @@ const catalogQueries = new Map<
 >();
 
 export function registerCatalogIpc() {
-  ipcMain.handle("catalog:status", getCatalogStatus);
-  ipcMain.handle("catalog:list", async (_event, request?: CatalogListRequest) => {
+  ipcMain.handle("catalog:status", (event) => {
+    assertTrustedSender(event);
+    return getCatalogStatus();
+  });
+  ipcMain.handle("catalog:list", async (event, request: unknown) => {
+    assertTrustedSender(event);
     await catalogQueriesAvailable;
-    return queryCatalog(request ?? {});
+    return queryCatalog(validateCatalogListRequest(request));
   });
   ipcMain.handle("catalog:download", (event) => {
+    assertTrustedSender(event);
     activeDownload ??= downloadCatalog(event).finally(() => {
       activeDownload = undefined;
     });
