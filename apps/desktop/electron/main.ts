@@ -10,14 +10,14 @@ registerCatalogIpc();
 
 async function createWindow() {
   const window = new BrowserWindow({
-    width: 1080,
-    height: 720,
+    width: 1280,
+    height: 760,
     minWidth: 720,
     minHeight: 520,
     show: false,
     title: "Mooligan",
     titleBarStyle: "hiddenInset",
-    backgroundColor: "#f2f1ed",
+    backgroundColor: "#0a0a0a",
     webPreferences: {
       preload: fileURLToPath(new URL(/* @vite-ignore */ "./preload.mjs", import.meta.url)),
       sandbox: true,

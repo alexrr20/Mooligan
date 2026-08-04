@@ -15,8 +15,8 @@ body,
 body {
   margin: 0;
   overflow: hidden;
-  background: #1b1d19;
-  color: #1b1d19;
+  background: #0a0a0a;
+  color: #f4f1e8;
   font-family: "Avenir Next", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
